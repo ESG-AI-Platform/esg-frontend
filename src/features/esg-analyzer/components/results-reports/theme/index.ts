@@ -1,0 +1,1 @@
+export { ThemeGapAnalysisCard } from './ThemeGapAnalysisCard';

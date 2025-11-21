@@ -1,0 +1,115 @@
+{
+    "extends": [
+        "next/core-web-vitals"
+    ],
+    "parser": "@typescript-eslint/parser",
+    "plugins": [
+        "@typescript-eslint",
+        "import"
+    ],
+    "rules": {
+        // Import organization rules
+        "import/order": [
+            "error",
+            {
+                "groups": [
+                    "builtin",
+                    "external",
+                    "internal",
+                    "parent",
+                    "sibling",
+                    "index"
+                ],
+                "pathGroups": [
+                    {
+                        "pattern": "react",
+                        "group": "external",
+                        "position": "before"
+                    },
+                    {
+                        "pattern": "next/**",
+                        "group": "external",
+                        "position": "before"
+                    },
+                    {
+                        "pattern": "@/shared/**",
+                        "group": "internal",
+                        "position": "before"
+                    },
+                    {
+                        "pattern": "@/features/**",
+                        "group": "internal",
+                        "position": "before"
+                    },
+                    {
+                        "pattern": "@/app/**",
+                        "group": "internal",
+                        "position": "before"
+                    }
+                ],
+                "pathGroupsExcludedImportTypes": [
+                    "react",
+                    "next"
+                ],
+                "newlines-between": "always",
+                "alphabetize": {
+                    "order": "asc",
+                    "caseInsensitive": true
+                }
+            }
+        ],
+        // Feature-based architecture rules
+        "import/no-restricted-paths": [
+            "error",
+            {
+                "zones": [
+                    {
+                        "target": "./src/shared/**",
+                        "from": [
+                            "./src/features/**",
+                            "./src/app/**"
+                        ],
+                        "message": "Shared modules cannot import from features or app"
+                    },
+                    {
+                        "target": "./src/features/*/**",
+                        "from": "./src/features/!(*)/**",
+                        "message": "Features cannot import from other features directly"
+                    }
+                ]
+            }
+        ],
+        // General code quality rules
+        "@typescript-eslint/no-unused-vars": [
+            "error",
+            {
+                "argsIgnorePattern": "^_",
+                "varsIgnorePattern": "^_"
+            }
+        ],
+        "@typescript-eslint/explicit-function-return-type": "off",
+        "@typescript-eslint/explicit-module-boundary-types": "off",
+        "@typescript-eslint/no-explicit-any": "warn",
+        "prefer-const": "error",
+        "no-var": "error"
+    },
+    "overrides": [
+        {
+            "files": [
+                "src/app/**/*.tsx",
+                "src/app/**/*.ts"
+            ],
+            "rules": {
+                "import/no-default-export": "off"
+            }
+        }
+    ],
+    "settings": {
+        "import/resolver": {
+            "typescript": {
+                "alwaysTryTypes": true,
+                "project": "./tsconfig.json"
+            }
+        }
+    }
+}
