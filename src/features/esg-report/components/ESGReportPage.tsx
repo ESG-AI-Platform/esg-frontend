@@ -55,7 +55,7 @@ export function ESGReportPage() {
             if (process.env.NODE_ENV === 'development') {
                 link.href = report.csvReportUrl.replace('minio', 'localhost');
             } else {
-                link.href = report.csvReportUrl.replace('minio', process.env.MINIO_URL || 'minio.esg-ai.wankaew.com');
+                link.href = report.csvReportUrl.replace('minio:9000', process.env.MINIO_URL || 'minio.esg-ai.wankaew.com');
             }
             link.target = '_blank';
             const companyName = report.companyName || 'Unknown_Company';
