@@ -50,6 +50,13 @@ interface ResultsReportsProps {
     reportData?: ESGReportData;
 }
 
+const getAdjustedMinioUrl = (url: string) => {
+    if (process.env.NODE_ENV === 'development') {
+        return url.replace('minio', 'localhost');
+    }
+    return url.replace('minio:9000', process.env.MINIO_URL || 'minio.esg-ai.wankaew.com');
+};
+
 export function ResultsReports({ reportData }: ResultsReportsProps) {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [overallData, setOverallData] = useState<OverallStatisticData>(mockOverallData);
@@ -66,15 +73,8 @@ export function ResultsReports({ reportData }: ResultsReportsProps) {
 
         try {
             if (reportData.csvMergedReportUrl && reportData.csvReportUrl) {
-                let mergedUrl: string;
-                let detailedUrl: string;
-                if (process.env.NODE_ENV === 'development') {
-                    mergedUrl = reportData.csvMergedReportUrl.replace('minio', 'localhost');
-                    detailedUrl = reportData.csvReportUrl.replace('minio', 'localhost');
-                } else {
-                    mergedUrl = reportData.csvMergedReportUrl.replace('minio:9000', process.env.MINIO_URL || 'minio.esg-ai.wankaew.com');
-                    detailedUrl = reportData.csvReportUrl.replace('minio:9000', process.env.MINIO_URL || 'minio.esg-ai.wankaew.com');
-                }
+                const mergedUrl = getAdjustedMinioUrl(reportData.csvMergedReportUrl);
+                const detailedUrl = getAdjustedMinioUrl(reportData.csvReportUrl);
 
                 const processedData = await CSVService.fetchAndProcessBothCSVs(mergedUrl, detailedUrl);
 
@@ -111,11 +111,7 @@ export function ResultsReports({ reportData }: ResultsReportsProps) {
             setIsLoading(true);
 
             const link = document.createElement('a');
-            if (process.env.NODE_ENV === 'development') {
-                link.href = reportData.csvMergedReportUrl.replace('minio', 'localhost');
-            } else {
-                link.href = reportData.csvMergedReportUrl.replace('minio:9000', process.env.MINIO_URL || 'minio.esg-ai.wankaew.com');
-            }
+            link.href = getAdjustedMinioUrl(reportData.csvMergedReportUrl);
             link.target = '_blank';
             const companyName = reportData.companyName || 'Unknown_Company';
             link.download = `${companyName.replace(/[^a-z0-9]/gi, '_')}_ESG_Report_${new Date().toISOString().split('T')[0]}.csv`;
@@ -145,11 +141,7 @@ export function ResultsReports({ reportData }: ResultsReportsProps) {
             setIsLoading(true);
 
             const link = document.createElement('a');
-            if (process.env.NODE_ENV === 'development') {
-                link.href = reportData.csvReportUrl.replace('minio', 'localhost');
-            } else {
-                link.href = reportData.csvReportUrl.replace('minio:9000', process.env.MINIO_URL || 'minio.esg-ai.wankaew.com');
-            }
+            link.href = getAdjustedMinioUrl(reportData.csvReportUrl);
             link.target = '_blank';
             const companyName = reportData.companyName || 'Unknown_Company';
             link.download = `${companyName.replace(/[^a-z0-9]/gi, '_')}_ESG_Report_${new Date().toISOString().split('T')[0]}.csv`;
