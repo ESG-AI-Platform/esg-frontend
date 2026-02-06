@@ -1,207 +1,49 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useForm, FormProvider, SubmitHandler } from 'react-hook-form';
 
 import { ESGReportData } from '@/shared/types/esgReport';
-import type { FileInfo } from '@/shared/types/file';
 
-import { deriveIcbSelectionFromSubsector, type IcbSelection } from '../constants/icb';
+import { deriveIcbSelectionFromSubsector } from '../constants/icb';
+import { useFileUpload } from '../hooks/useFileUpload';
 import { esgAnalyzerService } from '../services';
 import { ESGProcessDocumentsResponse } from '../types';
 
-import { CompanyBasicInfo, ICBSelector } from './company-info';
-import { FileList, FileUploadArea } from './document-upload';
-
-interface FileInfoWithFile extends FileInfo {
-    file?: File;
-}
+import { CompanyBasicInfo } from './company-info/CompanyBasicInfo';
+import { ICBSelector } from './company-info/ICBSelector';
+import { FileList, FileUploadArea, UploadProgress } from './document-upload';
+import { documentUploadSchema, type DocumentUploadFormValues } from './document-upload/schema';
 
 interface DocumentUploadProps {
     reportData?: ESGReportData;
     onProcessingComplete?: (report: ESGProcessDocumentsResponse) => void;
 }
 
-export function DocumentUpload({ reportData, onProcessingComplete }: DocumentUploadProps) {
-    const [documents, setDocuments] = useState<FileInfoWithFile[]>([]);
+function DocumentUploadContent({ isReadOnly, isProcessing, onSubmit }: { isReadOnly: boolean; isProcessing: boolean; onSubmit: () => void }) {
+    const { fields, handleFileSelect, handleRemoveFile } = useFileUpload();
+    const { formState: { errors } } = useForm();
+
     const [isDragging, setIsDragging] = useState(false);
-    const [isProcessing, setIsProcessing] = useState(false);
-    const isReadOnly = !!reportData;
-
-    // Company Info states
-    const [companyName, setCompanyName] = useState('');
-    const [companyWebsite, setCompanyWebsite] = useState('');
-    const [stockTicker, setStockTicker] = useState('');
-    const [year, setYear] = useState('');
-    const [additionalInfo, setAdditionalInfo] = useState('');
-    const [selectedICB, setSelectedICB] = useState<IcbSelection>({
-        level1: '',
-        level2: '',
-        level3: '',
-        level4: ''
-    });
-
-    // Load data from reportData when component mounts
-    useEffect(() => {
-        if (reportData) {
-            setCompanyName(reportData.companyName || '');
-            setCompanyWebsite(reportData.companyUrl || '');
-            setStockTicker(reportData.stockTicker || '');
-            setYear(reportData.year?.toString() || '');
-            setAdditionalInfo(reportData.additionalInfo || '');
-            const baseSelection: IcbSelection = {
-                level1: reportData.industryId || '',
-                level2: reportData.supersectorId || '',
-                level3: reportData.sectorId || '',
-                level4: reportData.subsectorId || ''
-            };
-
-            const derivedSelection = reportData.subsectorId
-                ? deriveIcbSelectionFromSubsector(reportData.subsectorId)
-                : null;
-
-            const finalSelection: IcbSelection = derivedSelection
-                ? {
-                    level1: derivedSelection.level1 || baseSelection.level1,
-                    level2: derivedSelection.level2 || baseSelection.level2,
-                    level3: derivedSelection.level3 || baseSelection.level3,
-                    level4: baseSelection.level4 || derivedSelection.level4
-                }
-                : baseSelection;
-
-            setSelectedICB(finalSelection);
-
-            let convertedDocuments: FileInfoWithFile[] = [];
-            if (reportData.documentInputName && reportData.documentInputName.length > 0) {
-                convertedDocuments = reportData.documentInputName.map((name: string, index: number) => ({
-                    id: `existing-${index}`,
-                    name: name || `Document ${index + 1}`,
-                    url: reportData.documentInputUrl[index] || '',
-                    uploadedAt: reportData.createdAt || new Date().toISOString(),
-                    size: 0,
-                    type: 'application/pdf'
-                }));
-            }
-
-            setDocuments(convertedDocuments);
-        } else {
-            setSelectedICB({
-                level1: '',
-                level2: '',
-                level3: '',
-                level4: ''
-            });
-        }
-    }, [reportData]);
-
-    const handleFileSelect = (files: FileList | null) => {
-        if (isReadOnly) return;
-
-        if (!files || files.length === 0) return;
-
-        const MAX_SIZE = 50 * 1024 * 1024; // 50MB
-        const fileArray: File[] = Array.from(files);
-        const accepted: File[] = [];
-        const rejected: { name: string; reason: string }[] = [];
-
-        fileArray.forEach((file: File) => {
-            const name = file.name || 'Unknown';
-            const isPdf = (file.type && file.type === 'application/pdf') || name.toLowerCase().endsWith('.pdf');
-
-            if (!isPdf) {
-                rejected.push({ name, reason: 'Not a PDF' });
-                return;
-            }
-
-            if (file.size > MAX_SIZE) {
-                rejected.push({ name, reason: 'File too large (max 50MB)' });
-                return;
-            }
-
-            accepted.push(file);
-        });
-
-        if (rejected.length > 0) {
-            const msgs = rejected.map(r => `${r.name}: ${r.reason}`);
-            alert('Some files were not accepted:\n' + msgs.join('\n'));
-        }
-
-        accepted.forEach((file: File) => addFile(file));
-    };
-
-    const addFile = (file: File) => {
-        if (isReadOnly) return;
-
-        const uniqueId = `temp-${Date.now()}-${Math.random()}`;
-        const fileInfoWithFile: FileInfoWithFile = {
-            id: uniqueId,
-            file,
-            url: URL.createObjectURL(file),
-            name: file.name,
-            size: file.size,
-            type: file.type,
-            uploadedAt: new Date().toISOString()
-        };
-
-        setDocuments(prev => [...prev, fileInfoWithFile]);
-    };
 
     const handleDragOver = (e: React.DragEvent) => {
         if (isReadOnly) return;
-
         e.preventDefault();
         setIsDragging(true);
     };
 
     const handleDragLeave = () => {
         if (isReadOnly) return;
-
         setIsDragging(false);
     };
 
     const handleDrop = (e: React.DragEvent) => {
         if (isReadOnly) return;
-
         e.preventDefault();
         setIsDragging(false);
         handleFileSelect(e.dataTransfer.files);
-    };
-
-    const handleDeleteDocument = async (id: string) => {
-        if (isReadOnly) return;
-
-        try {
-            setDocuments(prev => prev.filter(doc => doc.id !== id));
-        } catch (error) {
-            console.error('Delete failed:', error);
-        }
-    };
-
-    const getUploadableFiles = (): File[] => {
-        return documents.filter(doc => doc.file).map(doc => doc.file!);
-    };
-
-    // ICB Selection handlers
-    const handleICBChange = (level: 'level1' | 'level2' | 'level3' | 'level4', value: string) => {
-        if (isReadOnly) return;
-
-        setSelectedICB(prev => {
-            const newSelection = { ...prev };
-            newSelection[level] = value;
-
-            // Reset lower levels when upper level changes
-            if (level === 'level1') {
-                newSelection.level2 = '';
-                newSelection.level3 = '';
-                newSelection.level4 = '';
-            } else if (level === 'level2') {
-                newSelection.level3 = '';
-                newSelection.level4 = '';
-            } else if (level === 'level3') {
-                newSelection.level4 = '';
-            }
-
-            return newSelection;
-        });
     };
 
     return (
@@ -224,18 +66,31 @@ export function DocumentUpload({ reportData, onProcessingComplete }: DocumentUpl
                         </p>
 
                         {!isReadOnly && (
-                            <FileUploadArea
-                                isDragging={isDragging}
-                                onDragOver={handleDragOver}
-                                onDragLeave={handleDragLeave}
-                                onDrop={handleDrop}
-                                onFileSelect={handleFileSelect}
-                            />
+                            <>
+                                <FileUploadArea
+                                    isDragging={isDragging}
+                                    onDragOver={handleDragOver}
+                                    onDragLeave={handleDragLeave}
+                                    onDrop={handleDrop}
+                                    onFileSelect={handleFileSelect}
+                                />
+                                <UploadProgress isUploading={isProcessing} />
+                                {errors.root && errors.root.message && (
+                                    <div className="mt-2 text-sm text-red-600 bg-red-50 p-2 rounded">
+                                        {errors.root.message}
+                                    </div>
+                                )}
+                                {errors.documents && typeof errors.documents.message === 'string' && (
+                                    <div className="mt-2 text-sm text-red-600">
+                                        {errors.documents.message}
+                                    </div>
+                                )}
+                            </>
                         )}
 
                         <FileList
-                            documents={documents}
-                            onDeleteDocument={isReadOnly ? undefined : handleDeleteDocument}
+                            documents={fields.map(f => ({ ...f, url: f.url || '' }))}
+                            onDeleteDocument={isReadOnly ? undefined : handleRemoveFile}
                         />
                     </div>
                 </div>
@@ -248,83 +103,14 @@ export function DocumentUpload({ reportData, onProcessingComplete }: DocumentUpl
                     <div className="space-y-4 sm:space-y-6">
                         <p className="text-sm sm:text-base text-gray-600">Provide company details for comprehensive analysis</p>
 
-                        <CompanyBasicInfo
-                            companyName={companyName}
-                            setCompanyName={isReadOnly ? () => { } : setCompanyName}
-                            companyWebsite={companyWebsite}
-                            setCompanyWebsite={isReadOnly ? () => { } : setCompanyWebsite}
-                            stockTicker={stockTicker}
-                            setStockTicker={isReadOnly ? () => { } : setStockTicker}
-                            year={year}
-                            setYear={isReadOnly ? () => { } : setYear}
-                            additionalInfo={additionalInfo}
-                            setAdditionalInfo={isReadOnly ? () => { } : setAdditionalInfo}
-                            readOnly={isReadOnly}
-                        />
-
-                        <ICBSelector
-                            selectedICB={selectedICB}
-                            onICBChange={handleICBChange}
-                            readOnly={isReadOnly}
-                        />
+                        <CompanyBasicInfo readOnly={isReadOnly} />
+                        <ICBSelector readOnly={isReadOnly} />
 
                         {/* Submit Button - Only show when not in read-only mode */}
                         {!isReadOnly && (
                             <div className="pt-4 border-t border-gray-200">
                                 <button
-                                    onClick={async () => {
-                                        const errors = [];
-
-                                        if (!companyName.trim()) {
-                                            errors.push('Company Name is required');
-                                        }
-
-                                        if (!year.trim()) {
-                                            errors.push('Year Established is required');
-                                        }
-
-                                        if (!selectedICB.level1) {
-                                            errors.push('Industry (ICB Level 1) is required');
-                                        }
-
-                                        if (getUploadableFiles().length === 0) {
-                                            errors.push('At least one document is required');
-                                        }
-
-                                        if (errors.length > 0) {
-                                            alert('Please fill in all required fields:\n' + errors.join('\n'));
-                                            return;
-                                        }
-
-                                        const companyData = {
-                                            companyName,
-                                            companyWebsite,
-                                            stockTicker,
-                                            year,
-                                            additionalInfo,
-                                            // industryId: selectedICB.level1,
-                                            // supersectorId: selectedICB.level2,
-                                            // sectorId: selectedICB.level3,
-                                            subsectorCode: selectedICB.level4
-                                        };
-
-                                        try {
-                                            setIsProcessing(true);
-
-                                            const fileArray = getUploadableFiles();
-                                            const processingData = esgAnalyzerService.prepareProcessingData(companyData, fileArray);
-                                            const result = await esgAnalyzerService.processDocuments(processingData);
-
-                                            if (onProcessingComplete) {
-                                                onProcessingComplete(result);
-                                            }
-                                        } catch (error) {
-                                            console.error('Processing failed:', error);
-                                            alert('Failed to process documents. Please try again.');
-                                        } finally {
-                                            setIsProcessing(false);
-                                        }
-                                    }}
+                                    onClick={onSubmit}
                                     disabled={isProcessing}
                                     className="w-full px-4 py-3 bg-blue-600 text-white text-sm sm:text-base font-medium rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
@@ -336,5 +122,110 @@ export function DocumentUpload({ reportData, onProcessingComplete }: DocumentUpl
                 </div>
             </div>
         </div>
+    );
+}
+
+export function DocumentUpload({ reportData, onProcessingComplete }: DocumentUploadProps) {
+    const [isProcessing, setIsProcessing] = useState(false);
+    const isReadOnly = !!reportData;
+
+    const getDefaultValues = (): DocumentUploadFormValues => {
+        if (!reportData) {
+            return {
+                documents: [],
+                companyName: '',
+                companyWebsite: '',
+                stockTicker: '',
+                year: '',
+                additionalInfo: '',
+                industryId: '',
+                supersectorId: '',
+                sectorId: '',
+                subsectorCode: ''
+            };
+        }
+
+        const baseDefaults: DocumentUploadFormValues = {
+            documents: [],
+            companyName: reportData.companyName || '',
+            companyWebsite: reportData.companyUrl || '',
+            stockTicker: reportData.stockTicker || '',
+            year: reportData.year?.toString() || '',
+            additionalInfo: reportData.additionalInfo || '',
+            industryId: reportData.industryId || '',
+            supersectorId: reportData.supersectorId || '',
+            sectorId: reportData.sectorId || '',
+            subsectorCode: reportData.subsectorId || ''
+        };
+
+        if (reportData.subsectorId) {
+            const derived = deriveIcbSelectionFromSubsector(reportData.subsectorId);
+            if (derived) {
+                baseDefaults.industryId = derived.level1 || baseDefaults.industryId;
+                baseDefaults.supersectorId = derived.level2 || baseDefaults.supersectorId;
+                baseDefaults.sectorId = derived.level3 || baseDefaults.sectorId;
+                baseDefaults.subsectorCode = derived.level4 || baseDefaults.subsectorCode;
+            }
+        }
+
+        const existingDocs = (reportData.documentInputName || []).map((name, index) => ({
+            id: `existing-${index}`,
+            name: name || `Document ${index + 1}`,
+            url: reportData.documentInputUrl?.[index] || '',
+            uploadedAt: reportData.createdAt || new Date().toISOString(),
+            size: 0,
+            type: 'application/pdf',
+            file: undefined
+        }));
+
+        baseDefaults.documents = existingDocs;
+        return baseDefaults;
+    };
+
+    const methods = useForm<DocumentUploadFormValues>({
+        resolver: zodResolver(documentUploadSchema),
+        defaultValues: getDefaultValues(),
+        mode: 'onChange'
+    });
+
+    const onSubmit: SubmitHandler<DocumentUploadFormValues> = async (data) => {
+        try {
+            setIsProcessing(true);
+
+            const files = data.documents
+                .filter(doc => doc.file !== undefined)
+                .map(doc => doc.file as File);
+
+            const companyData = {
+                companyName: data.companyName,
+                companyWebsite: data.companyWebsite || '',
+                stockTicker: data.stockTicker || '',
+                year: data.year,
+                additionalInfo: data.additionalInfo || '',
+                subsectorCode: data.subsectorCode || ''
+            };
+
+            const processingData = esgAnalyzerService.prepareProcessingData(companyData, files);
+            const result = await esgAnalyzerService.processDocuments(processingData);
+
+            if (onProcessingComplete) {
+                onProcessingComplete(result);
+            }
+        } catch (error) {
+            console.error('Processing failed:', error);
+            methods.setError('root', { message: 'Failed to process documents. Please try again.' });
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    return (
+        <FormProvider {...methods}>
+            <DocumentUploadContent
+                isReadOnly={isReadOnly}
+                isProcessing={isProcessing}
+                onSubmit={methods.handleSubmit(onSubmit)}
+            />
+        </FormProvider>
     );
 }

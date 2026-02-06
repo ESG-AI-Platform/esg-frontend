@@ -4,19 +4,21 @@ import type { FileInfo } from '@/shared/types/file';
 
 interface FileListProps {
     documents: FileInfo[];
-    onDeleteDocument?: (id: string) => void;
+    onDeleteDocument?: (index: number) => void;
 }
 
 export function FileList({ documents, onDeleteDocument }: FileListProps) {
-    if (documents.length === 0) return null; return (
+    if (documents.length === 0) return null;
+
+    return (
         <div className="mt-4 sm:mt-6">
             <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3">
                 Uploaded Files ({documents.length})
             </h3>
             <div className="space-y-2">
-                {documents.map((doc) => (
+                {documents.map((doc, index) => (
                     <div
-                        key={doc.id}
+                        key={doc.id || index}
                         className="flex items-center justify-between p-2 sm:p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors duration-200"
                     >
                         <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-1">
@@ -71,7 +73,8 @@ export function FileList({ documents, onDeleteDocument }: FileListProps) {
                             )}
                             {onDeleteDocument && (
                                 <button
-                                    onClick={() => onDeleteDocument(doc.id)}
+                                    type="button"
+                                    onClick={() => onDeleteDocument(index)}
                                     className="text-red-600 hover:text-red-800 p-1 rounded transition-colors duration-200"
                                     title="Delete file"
                                 >

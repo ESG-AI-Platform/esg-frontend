@@ -1,67 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useFormContext } from 'react-hook-form';
+
+import { type DocumentUploadFormValues } from '../document-upload/schema';
 
 interface CompanyBasicInfoProps {
-    companyName: string;
-    setCompanyName: (value: string) => void;
-    companyWebsite: string;
-    setCompanyWebsite: (value: string) => void;
-    stockTicker: string;
-    setStockTicker: (value: string) => void;
-    year: string;
-    setYear: (value: string) => void;
-    additionalInfo: string;
-    setAdditionalInfo: (value: string) => void;
     readOnly?: boolean;
 }
 
-export function CompanyBasicInfo({
-    companyName,
-    setCompanyName,
-    companyWebsite,
-    setCompanyWebsite,
-    stockTicker,
-    setStockTicker,
-    year,
-    setYear,
-    additionalInfo,
-    setAdditionalInfo,
-    readOnly = false
-}: CompanyBasicInfoProps) {
-    const [errors, setErrors] = useState<{ [key: string]: string }>({});
-
-    const validateField = (field: string, value: string) => {
-        const newErrors = { ...errors };
-
-        switch (field) {
-            case 'companyName':
-                if (!value.trim()) {
-                    newErrors[field] = 'Company name is required';
-                } else {
-                    delete newErrors[field];
-                }
-                break;
-            case 'companyWebsite':
-                if (value && !value.match(/^https?:\/\/.+/)) {
-                    newErrors[field] = 'Please enter a valid URL';
-                } else {
-                    delete newErrors[field];
-                }
-                break;
-            case 'year':
-                const currentYear = new Date().getFullYear();
-                const yearNum = parseInt(value);
-                if (value && (isNaN(yearNum) || yearNum < 1800 || yearNum > currentYear)) {
-                    newErrors[field] = `Please enter a valid year between 1800 and ${currentYear}`;
-                } else {
-                    delete newErrors[field];
-                }
-                break;
-        }
-
-        setErrors(newErrors);
-    };
+export function CompanyBasicInfo({ readOnly = false }: CompanyBasicInfoProps) {
+    const { register, formState: { errors } } = useFormContext<DocumentUploadFormValues>();
 
     return (
         <div className="space-y-6">
@@ -80,14 +28,8 @@ export function CompanyBasicInfo({
                         </div>
                         <input
                             type="text"
-                            value={companyName}
-                            onChange={(e) => {
-                                if (!readOnly) {
-                                    setCompanyName(e.target.value);
-                                    validateField('companyName', e.target.value);
-                                }
-                            }}
-                            readOnly={readOnly}
+                            {...register('companyName')}
+                            disabled={readOnly}
                             className={`w-full pl-10 pr-3 py-3 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${errors.companyName ? 'border-red-300 bg-red-50' : 'border-gray-300'} ${readOnly ? 'bg-gray-50 cursor-not-allowed' : 'bg-white'
                                 }`}
                             placeholder="Enter company name..."
@@ -98,7 +40,7 @@ export function CompanyBasicInfo({
                             <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
                                 <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                             </svg>
-                            {errors.companyName}
+                            {errors.companyName.message}
                         </p>
                     )}
                 </div>
@@ -117,14 +59,8 @@ export function CompanyBasicInfo({
                         </div>
                         <input
                             type="url"
-                            value={companyWebsite}
-                            onChange={(e) => {
-                                if (!readOnly) {
-                                    setCompanyWebsite(e.target.value);
-                                    validateField('companyWebsite', e.target.value);
-                                }
-                            }}
-                            readOnly={readOnly}
+                            {...register('companyWebsite')}
+                            disabled={readOnly}
                             className={`w-full pl-10 pr-3 py-3 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${errors.companyWebsite ? 'border-red-300 bg-red-50' : 'border-gray-300'} ${readOnly ? 'bg-gray-50 cursor-not-allowed' : 'bg-white'}`}
                             placeholder="https://company.com"
                         />
@@ -134,7 +70,7 @@ export function CompanyBasicInfo({
                             <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
                                 <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                             </svg>
-                            {errors.companyWebsite}
+                            {errors.companyWebsite.message}
                         </p>
                     )}
                 </div>
@@ -153,13 +89,8 @@ export function CompanyBasicInfo({
                         </div>
                         <input
                             type="text"
-                            value={stockTicker}
-                            onChange={(e) => {
-                                if (!readOnly) {
-                                    setStockTicker(e.target.value.toUpperCase());
-                                }
-                            }}
-                            readOnly={readOnly}
+                            {...register('stockTicker')}
+                            disabled={readOnly}
                             className={`w-full pl-10 pr-3 py-3 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${readOnly ? 'bg-gray-50 cursor-not-allowed' : 'bg-white'}`}
                             placeholder="e.g., AAPL, MSFT"
                             maxLength={10}
@@ -181,15 +112,8 @@ export function CompanyBasicInfo({
                         </div>
                         <input
                             type="text"
-                            value={year}
-                            onChange={(e) => {
-                                if (!readOnly) {
-                                    const value = e.target.value.replace(/\D/g, '');
-                                    setYear(value);
-                                    validateField('year', value);
-                                }
-                            }}
-                            readOnly={readOnly}
+                            {...register('year')}
+                            disabled={readOnly}
                             className={`w-full pl-10 pr-3 py-3 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${errors.year ? 'border-red-300 bg-red-50' : 'border-gray-300'} ${readOnly ? 'bg-gray-50 cursor-not-allowed' : 'bg-white'}`}
                             placeholder="YYYY"
                             maxLength={4}
@@ -200,7 +124,7 @@ export function CompanyBasicInfo({
                             <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
                                 <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                             </svg>
-                            {errors.year}
+                            {errors.year.message}
                         </p>
                     )}
                 </div>
@@ -218,20 +142,12 @@ export function CompanyBasicInfo({
                             </svg>
                         </div>
                         <textarea
-                            value={additionalInfo}
-                            onChange={(e) => {
-                                if (!readOnly) {
-                                    setAdditionalInfo(e.target.value);
-                                }
-                            }}
-                            readOnly={readOnly}
+                            {...register('additionalInfo')}
+                            disabled={readOnly}
                             rows={4}
                             className={`w-full pl-10 pr-3 py-3 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors resize-none ${readOnly ? 'bg-gray-50 cursor-not-allowed' : 'bg-white'}`}
                             placeholder="Any specific ESG focus areas, sustainability initiatives, or additional context about your company..."
                         />
-                    </div>
-                    <div className="mt-1 text-xs text-gray-500">
-                        {additionalInfo.length}/500 characters
                     </div>
                 </div>
             </div>

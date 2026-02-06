@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { ESGReportData } from '@/shared/types/esgReport';
 
@@ -58,13 +58,7 @@ export function ResultsReports({ reportData }: ResultsReportsProps) {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    useEffect(() => {
-        if (reportData?.csvReportUrl || reportData?.csvMergedReportUrl) {
-            loadCSVData();
-        }
-    }, [reportData]);
-
-    const loadCSVData = async () => {
+    const loadCSVData = useCallback(async () => {
         if (!reportData?.csvReportUrl && !reportData?.csvMergedReportUrl) return;
 
         setIsLoading(true);
@@ -94,7 +88,13 @@ export function ResultsReports({ reportData }: ResultsReportsProps) {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [reportData]);
+
+    useEffect(() => {
+        if (reportData?.csvReportUrl || reportData?.csvMergedReportUrl) {
+            loadCSVData();
+        }
+    }, [reportData, loadCSVData]);
 
     const handleDownloadReport = async () => {
         if (!reportData) {

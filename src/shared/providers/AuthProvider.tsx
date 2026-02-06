@@ -56,15 +56,9 @@ const DEFAULT_REDIRECT_PATH = "/";
 export const AuthProvider = ({ children }: AuthProviderProps) => {
     const router = useRouter();
 
-    const initialUser =
-        typeof window !== "undefined" ? storage.getUser<User>() : null;
-
-    const hasStoredTokens =
-        typeof window !== "undefined" && (storage.getToken() || storage.getRefreshToken());
-
     const [state, setState] = useState<AuthState>({
-        user: initialUser,
-        status: hasStoredTokens ? "checking" : initialUser ? "authenticated" : "unauthenticated",
+        user: null,
+        status: "unauthenticated",
         error: null,
     });
 
@@ -169,12 +163,19 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         const bootstrap = async () => {
             const accessToken = storage.getToken();
             const refreshToken = storage.getRefreshToken();
+            const storedUser = storage.getUser<User>();
 
             if (!accessToken && !refreshToken) {
                 if (!cancelled) {
                     setState(prev => ({ ...prev, user: null, status: "unauthenticated", error: null }));
                 }
                 return;
+            }
+
+            if (storedUser && !cancelled) {
+                 setState(prev => ({ ...prev, user: storedUser, status: "authenticated", error: null }));
+            } else if (!cancelled) {
+                 setState(prev => ({ ...prev, status: "checking" }));
             }
 
             try {
