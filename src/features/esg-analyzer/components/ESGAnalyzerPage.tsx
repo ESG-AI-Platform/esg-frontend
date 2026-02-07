@@ -5,78 +5,31 @@ import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 import { storage } from '@/shared/lib/storage';
-import { ESGReportData } from '@/shared/types/esgReport';
 
-import { esgReportService } from '@/features/esg-report/services';
+import { useReport } from '@/features/esg-report/hooks/useReport';
 
-import { esgAnalyzerService } from '../services';
-import type { ESGModule, ESGProcessDocumentsResponse, ESGProcessDocumentsStatusResponse } from '../types';
+import { ReportProvider } from '../context/ReportContext';
+import { useReportStatus } from '../hooks/useAnalyzer';
+import { ESGModule, ESGProcessDocumentsResponse } from '../types';
 
 import { Analysis } from './Analysis';
 import { DocumentUpload } from './DocumentUpload';
 import { ResultsReports } from './ResultsReports';
 
-export function ESGAnalyzerPage() {
+function ESGAnalyzerContent() {
     const searchParams = useSearchParams();
     const router = useRouter();
     const reportId = searchParams.get('reportId');
     const [activeModule, setActiveModule] = useState<ESGModule>('document-upload');
-    const [reportData, setReportData] = useState<ESGReportData | null>(null);
-    const [isLoading, setIsLoading] = useState(false);
-    const [processingStatus, setProcessingStatus] = useState<ESGProcessDocumentsStatusResponse | null>(null);
+    const { data: reportData, isLoading: isReportLoading, refetch: refetchReport } = useReport(reportId);
+    const { data: processingStatus } = useReportStatus(reportId || '', !!reportId);
 
     useEffect(() => {
-        if (reportId) {
-            setIsLoading(true);
-            esgReportService.getReportById(reportId)
-                .then(report => {
-                    if (report) {
-                        setReportData(report);
-                    }
-                })
-                .catch(error => {
-                    console.error('Failed to load report:', error);
-                })
-                .finally(() => {
-                    setIsLoading(false);
-                });
+        if (processingStatus?.status === 'COMPLETE' && activeModule === 'analysis') {
+            setActiveModule('results-reports');
+            refetchReport();
         }
-    }, [reportId]);
-
-    // Check processing status when reportId changes
-    useEffect(() => {
-        if (!reportId) return;
-
-        const checkProcessingStatus = async () => {
-            try {
-                const status = await esgAnalyzerService.getProcessedReportsStatus(reportId);
-                setProcessingStatus(status);
-
-                // Auto-navigate to Results & Reports when analysis is complete
-                if (status.status === 'COMPLETE' && activeModule === 'analysis') {
-                    setActiveModule('results-reports');
-                    // Fetch updated report data
-                    esgReportService.getReportById(reportId)
-                        .then(report => {
-                            if (report) {
-                                setReportData(report);
-                            }
-                        })
-                        .catch(error => {
-                            console.error('Failed to load updated report:', error);
-                        });
-                }
-            } catch (error) {
-                console.error('Failed to check processing status:', error);
-            }
-        };
-
-        checkProcessingStatus();
-
-        // Poll every 30 seconds to check for completion
-        const interval = setInterval(checkProcessingStatus, 30000);
-        return () => clearInterval(interval);
-    }, [reportId, activeModule]);
+    }, [processingStatus, activeModule, refetchReport]);
 
     const modules = [
         { id: 'document-upload', label: 'Document Upload' },
@@ -84,29 +37,25 @@ export function ESGAnalyzerPage() {
         { id: 'results-reports', label: 'Results & Reports' }
     ] as const;
 
-    // Determine which modules are available based on processing status
     const getAvailableModules = () => {
         if (!reportId) {
-            // No report ID - only document upload available
             return ['document-upload'];
         }
 
         if (!processingStatus) {
-            // Status unknown - allow document upload and analysis
+            const status = reportData?.status;
+             if (status === 'COMPLETE') return ['document-upload', 'results-reports'];
             return ['document-upload', 'analysis'];
         }
 
         switch (processingStatus.status) {
             case 'COMPLETE':
-                // Analysis complete - allow document upload and results
                 return ['document-upload', 'results-reports'];
             case 'PROCESSING':
             case 'INQUEUE':
-                // Processing in progress - allow document upload and analysis
                 return ['document-upload', 'analysis'];
             case 'FAILED':
             case 'CANCELLED':
-                // Processing failed - only allow document upload
                 return ['document-upload'];
             default:
                 return ['document-upload'];
@@ -122,27 +71,12 @@ export function ESGAnalyzerPage() {
     };
 
     const handleProcessingComplete = (newReport: ESGProcessDocumentsResponse) => {
-        // Navigate to analysis tab after successful processing
         setActiveModule('analysis');
-
-        // Store estimated time in localStorage for persistence
         if (newReport.estimatedTimeMinutes) {
             storage.setItem(`estimatedTime_${newReport.reportId}`, newReport.estimatedTimeMinutes.toString());
         }
 
-        // Update URL with the new reportId
         router.push(`/esg-analyzer?reportId=${newReport.reportId}`);
-
-        // Optionally, fetch the new report data
-        esgReportService.getReportById(newReport.reportId)
-            .then(report => {
-                if (report) {
-                    setReportData(report);
-                }
-            })
-            .catch(error => {
-                console.error('Failed to load new report:', error);
-            });
     };
 
     const renderActiveModule = () => {
@@ -152,7 +86,7 @@ export function ESGAnalyzerPage() {
             case 'analysis':
                 return <Analysis />;
             case 'results-reports':
-                return <ResultsReports reportData={reportData || undefined} />;
+                return <ResultsReports reportData={reportData} />;
             default:
                 return <DocumentUpload reportData={reportData || undefined} onProcessingComplete={handleProcessingComplete} />;
         }
@@ -223,7 +157,7 @@ export function ESGAnalyzerPage() {
 
             {/* Main Content */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                {isLoading ? (
+                {isReportLoading && reportId ? (
                     <div className="flex justify-center items-center py-12">
                         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
                         <span className="ml-3 text-gray-600">Loading report...</span>
@@ -233,5 +167,13 @@ export function ESGAnalyzerPage() {
                 )}
             </div>
         </div>
+    );
+}
+
+export function ESGAnalyzerPage() {
+    return (
+        <ReportProvider>
+            <ESGAnalyzerContent />
+        </ReportProvider>
     );
 }

@@ -1,16 +1,16 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import { ESGReportData } from '@/shared/types/esgReport';
 
-import { CSVService, mockThemeDataWithSources } from '../services';
-import { DimensionGapData, OverallStatisticData, ThemeGapData } from '../types';
+import { useReportCSV } from '../hooks/useAnalyzer';
+import { mockThemeDataWithSources } from '../services';
+import { DimensionGapData, OverallStatisticData } from '../types';
 
 import { AnalyzedThemesProportionalGap, DetailedAnalysisModal, OverallStatistic } from './results-reports';
 import { DimensionProportionalGap } from './results-reports/DimensionProportionalGap';
 
-// Mock data for demonstration
 const mockOverallData: OverallStatisticData = {
     gapAnalysis: {
         gapCount: 15,
@@ -47,69 +47,42 @@ const mockDimensionData: DimensionGapData[] = [
 ];
 
 interface ResultsReportsProps {
-    reportData?: ESGReportData;
+    reportData?: ESGReportData | null;
 }
 
 const getAdjustedMinioUrl = (url: string) => {
     if (process.env.NODE_ENV === 'development') {
         return url.replace('minio', 'localhost');
     }
-    return url.replace('minio:9000', process.env.MINIO_URL || 'minio.esg-ai.wankaew.com');
+    const minioUrl = process.env.NEXT_PUBLIC_MINIO_URL || process.env.MINIO_URL || 'minio.esg-ai.wankaew.com';
+    return url.replace('minio:9000', minioUrl);
 };
 
 export function ResultsReports({ reportData }: ResultsReportsProps) {
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [overallData, setOverallData] = useState<OverallStatisticData>(mockOverallData);
-    const [dimensionData, setDimensionData] = useState<DimensionGapData[]>(mockDimensionData);
-    const [themeData, setThemeData] = useState<ThemeGapData[]>(mockThemeDataWithSources);
-    const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    
+    const { 
+        data: processedData, 
+        isLoading: isCsvLoading, 
+        isError,
+        error: csvError,
+        refetch
+    } = useReportCSV(
+        reportData?.csvMergedReportUrl, 
+        reportData?.csvReportUrl
+    );
 
-    const loadCSVData = useCallback(async () => {
-        if (!reportData?.csvReportUrl && !reportData?.csvMergedReportUrl) return;
-
-        setIsLoading(true);
-        setError(null);
-
-        try {
-            if (reportData.csvMergedReportUrl && reportData.csvReportUrl) {
-                const mergedUrl = getAdjustedMinioUrl(reportData.csvMergedReportUrl);
-                const detailedUrl = getAdjustedMinioUrl(reportData.csvReportUrl);
-
-                const processedData = await CSVService.fetchAndProcessBothCSVs(mergedUrl, detailedUrl);
-
-                setOverallData(processedData.overallData);
-                setDimensionData(processedData.dimensionData);
-                setThemeData(processedData.themeData);
-            }
-        } catch (err) {
-            console.error('Error loading CSV data:', err);
-            setError('Failed to load report data. Please try again.');
-        } finally {
-            setIsLoading(false);
-        }
-    }, [reportData]);
-
-    useEffect(() => {
-        if (reportData?.csvReportUrl || reportData?.csvMergedReportUrl) {
-            loadCSVData();
-        }
-    }, [reportData, loadCSVData]);
+    const overallData = processedData?.overallData || mockOverallData;
+    const dimensionData = processedData?.dimensionData || mockDimensionData;
+    const themeData = processedData?.themeData || mockThemeDataWithSources;
 
     const handleDownloadReport = async () => {
-        if (!reportData) {
+        if (!reportData || !reportData.csvMergedReportUrl) {
             console.error('No report data available for download');
             return;
         }
 
-        if (!reportData.csvMergedReportUrl) {
-            alert('CSV report is not available for download');
-            return;
-        }
-
         try {
-            setIsLoading(true);
-
             const link = document.createElement('a');
             link.href = getAdjustedMinioUrl(reportData.csvMergedReportUrl);
             link.target = '_blank';
@@ -120,26 +93,17 @@ export function ResultsReports({ reportData }: ResultsReportsProps) {
             document.body.removeChild(link);
         } catch (error) {
             console.error('Failed to download report:', error);
-            setError('Failed to download report. Please try again.');
-        } finally {
-            setIsLoading(false);
+            alert('Failed to download report. Please try again.');
         }
     };
 
     const handleDownloadDetailedReport = async () => {
-        if (!reportData) {
+        if (!reportData || !reportData.csvReportUrl) {
             console.error('No report data available for download');
             return;
         }
 
-        if (!reportData.csvReportUrl) {
-            alert('CSV report is not available for download');
-            return;
-        }
-
         try {
-            setIsLoading(true);
-
             const link = document.createElement('a');
             link.href = getAdjustedMinioUrl(reportData.csvReportUrl);
             link.target = '_blank';
@@ -150,9 +114,7 @@ export function ResultsReports({ reportData }: ResultsReportsProps) {
             document.body.removeChild(link);
         } catch (error) {
             console.error('Failed to download report:', error);
-            setError('Failed to download report. Please try again.');
-        } finally {
-            setIsLoading(false);
+            alert('Failed to download report. Please try again.');
         }
     };
 
@@ -164,7 +126,7 @@ export function ResultsReports({ reportData }: ResultsReportsProps) {
         setIsModalOpen(false);
     };
 
-    if (isLoading) {
+    if (isCsvLoading) {
         return (
             <div className="flex items-center justify-center py-12">
                 <div className="w-12 h-12 border-b-2 border-blue-600 rounded-full animate-spin"></div>
@@ -173,14 +135,14 @@ export function ResultsReports({ reportData }: ResultsReportsProps) {
         );
     }
 
-    if (error) {
+    if (isError) {
         return (
             <div className="py-12 text-center">
                 <div className="p-6 border border-red-200 rounded-lg bg-red-50">
                     <h3 className="mb-2 font-medium text-red-800">Error Loading Data</h3>
-                    <p className="text-red-600">{error}</p>
+                    <p className="text-red-600">{(csvError as Error)?.message || 'Failed to load report data.'}</p>
                     <button
-                        onClick={loadCSVData}
+                        onClick={() => refetch()}
                         className="px-4 py-2 mt-4 text-white bg-red-600 rounded hover:bg-red-700"
                     >
                         Retry
@@ -231,7 +193,7 @@ export function ResultsReports({ reportData }: ResultsReportsProps) {
             <div className="flex flex-col justify-center gap-4 border-t sm:flex-row">
                 <button
                     onClick={handleDownloadReport}
-                    disabled={isLoading || !reportData?.csvMergedReportUrl}
+                    disabled={isCsvLoading || !reportData?.csvMergedReportUrl}
                     className="flex items-center justify-center px-6 py-3 space-x-2 font-medium text-white transition-colors duration-200 bg-blue-600 rounded-lg shadow-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
                 >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -242,7 +204,7 @@ export function ResultsReports({ reportData }: ResultsReportsProps) {
 
                 <button
                     onClick={handleDownloadDetailedReport}
-                    disabled={isLoading || !reportData?.csvReportUrl}
+                    disabled={isCsvLoading || !reportData?.csvReportUrl}
                     className="flex items-center justify-center px-6 py-3 space-x-2 font-medium text-white transition-colors duration-200 bg-blue-600 rounded-lg shadow-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
                 >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -253,7 +215,7 @@ export function ResultsReports({ reportData }: ResultsReportsProps) {
 
                 <button
                     onClick={handleViewDetailedAnalysis}
-                    disabled={isLoading}
+                    disabled={isCsvLoading}
                     className="flex items-center justify-center px-6 py-3 space-x-2 font-medium text-white transition-colors duration-200 bg-gray-600 rounded-lg shadow-md hover:bg-gray-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
                 >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

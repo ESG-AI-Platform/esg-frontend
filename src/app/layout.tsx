@@ -4,6 +4,7 @@ import type { Metadata, Viewport } from "next";
 
 import { NavBar } from "@/shared/components";
 import { AuthProvider } from "@/shared/providers/AuthProvider";
+import { QueryProvider } from "@/shared/providers/QueryProvider";
 
 import "./globals.css";
 
@@ -28,8 +29,10 @@ export default function RootLayout({
     <html lang="en">
       <body className="pt-16">
         <AuthProvider>
-          <NavBar />
-          <main>{children}</main>
+          <QueryProvider>
+            <NavBar />
+            <main>{children}</main>
+          </QueryProvider>
         </AuthProvider>
       </body>
     </html>
