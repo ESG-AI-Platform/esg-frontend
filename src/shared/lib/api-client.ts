@@ -3,6 +3,7 @@ import { ACCESS_TOKEN_TTL_MINUTES, REFRESH_TOKEN_TTL_MINUTES } from "../constant
 import { ApiResponse } from "../types/api";
 
 import { AppError, AuthenticationError, NetworkError } from "./error-handling";
+import { notifyError } from "./notify-error";
 import { storage } from "./storage";
 
 export class ApiClient {
@@ -228,7 +229,7 @@ export class ApiClient {
 
       return tokens.accessToken as string;
     } catch (error) {
-      console.error("Token refresh failed:", error);
+      notifyError(error, { context: "auth/token-refresh", showToast: false });
       storage.clearAuth("refresh-failed");
       return null;
     }

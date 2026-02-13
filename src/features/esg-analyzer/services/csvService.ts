@@ -1,3 +1,5 @@
+import { notifyError } from '@/shared/lib/notify-error';
+
 import { ThemeGapData, DimensionGapData, OverallStatisticData, SourceData } from '../types';
 
 import { DIMENSION_THEME_MAPPING } from './csvDataStructure';
@@ -31,11 +33,11 @@ export class CSVService {
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
-            
+
             const csvText = await response.text();
             return this.parseCSV(csvText);
         } catch (error) {
-            console.error('Error fetching CSV data:', error);
+            notifyError(error, { context: 'fetchCSVData', showToast: false });
             throw error;
         }
     }
@@ -56,7 +58,7 @@ export class CSVService {
 
             return this.processESGDataWithBothSources(mergedData, detailedData);
         } catch (error) {
-            console.error('Error fetching both CSV files:', error);
+            notifyError(error, { context: 'fetchBothCSVs', showToast: false });
             throw error;
         }
     }
@@ -199,7 +201,7 @@ export class CSVService {
             }
 
             const theme = themeMap.get(themeName)!;
-            
+
             // Find or create indicator
             let indicator = theme.indicators?.find(ind => ind.id === indicatorCode);
             if (!indicator) {
@@ -220,7 +222,7 @@ export class CSVService {
             let sources: SourceData[] = [];
             if (!hasGap) {
                 // Find all matching records in detailed data
-                const detailedSources = detailedData.filter(detailRow => 
+                const detailedSources = detailedData.filter(detailRow =>
                     detailRow['Indicator Question Code'] === questionCode &&
                     detailRow['Indicator Question'] === question &&
                     detailRow['Response']?.toLowerCase() === 'yes'
@@ -262,14 +264,14 @@ export class CSVService {
         const themes = Array.from(themeMap.values());
         themes.forEach(theme => {
             theme.indicators?.forEach(indicator => {
-                indicator.percentage = indicator.totalQuestions > 0 
+                indicator.percentage = indicator.totalQuestions > 0
                     ? Math.round((indicator.gapCount / indicator.totalQuestions) * 100)
                     : 0;
             });
 
             const totalQuestions = theme.indicators?.reduce((sum, ind) => sum + ind.totalQuestions, 0) || 0;
             const totalGaps = theme.indicators?.reduce((sum, ind) => sum + ind.gapCount, 0) || 0;
-            
+
             theme.totalGaps = totalQuestions;
             theme.gapCount = totalGaps;
             theme.percentage = totalQuestions > 0 ? Math.round((totalGaps / totalQuestions) * 100) : 0;
@@ -310,7 +312,7 @@ export class CSVService {
             }
 
             const theme = themeMap.get(themeName)!;
-            
+
             // Find or create indicator
             let indicator = theme.indicators?.find(ind => ind.id === indicatorCode);
             if (!indicator) {
@@ -353,14 +355,14 @@ export class CSVService {
         const themes = Array.from(themeMap.values());
         themes.forEach(theme => {
             theme.indicators?.forEach(indicator => {
-                indicator.percentage = indicator.totalQuestions > 0 
+                indicator.percentage = indicator.totalQuestions > 0
                     ? Math.round((indicator.gapCount / indicator.totalQuestions) * 100)
                     : 0;
             });
 
             const totalQuestions = theme.indicators?.reduce((sum, ind) => sum + ind.totalQuestions, 0) || 0;
             const totalGaps = theme.indicators?.reduce((sum, ind) => sum + ind.gapCount, 0) || 0;
-            
+
             theme.totalGaps = totalQuestions;
             theme.gapCount = totalGaps;
             theme.percentage = totalQuestions > 0 ? Math.round((totalGaps / totalQuestions) * 100) : 0;

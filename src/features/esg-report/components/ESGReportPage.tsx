@@ -4,6 +4,10 @@ import { useEffect, useState } from 'react';
 
 import { useRouter } from 'next/navigation';
 
+import { toast } from 'sonner';
+
+import { notifyError } from '@/shared/lib/notify-error';
+
 
 import { esgReportService } from '../services';
 import { ESGReportSummary } from '../types';
@@ -12,7 +16,7 @@ export function ESGReportPage() {
     const router = useRouter();
     const [reports, setReports] = useState<ESGReportSummary[]>([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    const [loadFailed, setLoadFailed] = useState(false);
 
     useEffect(() => {
         loadReports();
@@ -20,13 +24,16 @@ export function ESGReportPage() {
 
     const loadReports = async () => {
         setLoading(true);
-        setError(null);
+        setLoadFailed(false);
         try {
             const reportsSummary = await esgReportService.getReportsSummary();
             setReports(reportsSummary);
         } catch (error) {
-            console.error('Error loading reports:', error);
-            setError('Failed to load reports. Please try again.');
+            notifyError(error, {
+                context: 'loadReports',
+                userMessage: 'Failed to load reports. Please try again.',
+            });
+            setLoadFailed(true);
         } finally {
             setLoading(false);
         }
@@ -42,12 +49,12 @@ export function ESGReportPage() {
         try {
             const report = reports.find(r => r.id === reportId);
             if (!report) {
-                alert('Report not found');
+                toast.error('Report not found');
                 return;
             }
 
             if (!report.csvReportUrl) {
-                alert('CSV report is not available for download');
+                toast.error('CSV report is not available for download');
                 return;
             }
 
@@ -64,8 +71,10 @@ export function ESGReportPage() {
             link.click();
             document.body.removeChild(link);
         } catch (error) {
-            console.error('Error downloading report:', error);
-            alert('Failed to download report');
+            notifyError(error, {
+                context: 'downloadReport',
+                userMessage: 'Failed to download report',
+            });
         }
     };
 
@@ -100,11 +109,11 @@ export function ESGReportPage() {
         );
     }
 
-    if (error) {
+    if (loadFailed) {
         return (
             <div className="flex items-center justify-center min-h-screen bg-gray-50">
                 <div className="text-center">
-                    <div className="mb-4 text-lg text-red-600">{error}</div>
+                    <p className="mb-4 text-gray-600">Could not load reports.</p>
                     <button
                         onClick={loadReports}
                         className="px-4 py-2 text-white transition-colors bg-blue-600 rounded-lg hover:bg-blue-700"

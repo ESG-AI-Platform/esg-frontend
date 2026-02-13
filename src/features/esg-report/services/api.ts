@@ -1,5 +1,6 @@
 import { API_ENDPOINTS } from '@/shared/constants/api';
 import { ApiClient } from '@/shared/lib/api-client';
+import { notifyError } from '@/shared/lib/notify-error';
 import { ESGReportData } from '@/shared/types/esgReport';
 
 import { ESGReportSummary } from '../types';
@@ -35,7 +36,10 @@ class ESGReportService {
             const report = reports.find(r => r.id === id);
             return report || null;
         } catch (error) {
-            console.error('Failed to fetch report:', error);
+            notifyError(error, {
+                context: 'getReportById',
+                showToast: false,
+            });
             return null;
         }
     }

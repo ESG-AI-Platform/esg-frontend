@@ -4,6 +4,7 @@ export * from "./constants/api";
 export * from "./hooks";
 export * from "./lib/api-client";
 export * from "./lib/error-handling";
+export * from "./lib/notify-error";
 export * from "./lib/storage";
 export * from "./lib/utils";
 export * from "./providers";

@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm, FormProvider, SubmitHandler } from 'react-hook-form';
 
+import { notifyError } from '@/shared/lib/notify-error';
 import { ESGReportData } from '@/shared/types/esgReport';
 
 import { deriveIcbSelectionFromSubsector } from '../constants/icb';
@@ -24,7 +25,6 @@ interface DocumentUploadProps {
 
 function DocumentUploadContent({ isReadOnly, isProcessing, onSubmit }: { isReadOnly: boolean; isProcessing: boolean; onSubmit: () => void }) {
     const { fields, handleFileSelect, handleRemoveFile } = useFileUpload();
-    const { formState: { errors } } = useForm();
 
     const [isDragging, setIsDragging] = useState(false);
 
@@ -75,16 +75,7 @@ function DocumentUploadContent({ isReadOnly, isProcessing, onSubmit }: { isReadO
                                     onFileSelect={handleFileSelect}
                                 />
                                 <UploadProgress isUploading={isProcessing} />
-                                {errors.root && errors.root.message && (
-                                    <div className="mt-2 text-sm text-red-600 bg-red-50 p-2 rounded">
-                                        {errors.root.message}
-                                    </div>
-                                )}
-                                {errors.documents && typeof errors.documents.message === 'string' && (
-                                    <div className="mt-2 text-sm text-red-600">
-                                        {errors.documents.message}
-                                    </div>
-                                )}
+
                             </>
                         )}
 
@@ -212,8 +203,11 @@ export function DocumentUpload({ reportData, onProcessingComplete }: DocumentUpl
                 onProcessingComplete(result);
             }
         } catch (error) {
-            console.error('Processing failed:', error);
-            methods.setError('root', { message: 'Failed to process documents. Please try again.' });
+            notifyError(error, {
+                context: 'processDocuments',
+                userMessage: 'Document processing failed',
+            });
+
         } finally {
             setIsProcessing(false);
         }

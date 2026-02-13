@@ -1,3 +1,5 @@
+import { telemetry } from "@/shared/services/telemetry";
+
 export interface ErrorInfo {
   message: string;
   code?: string;
@@ -126,7 +128,7 @@ export const errorHandler = {
     return new AppError("Unknown error occurred", 500, "UNKNOWN_ERROR", path);
   },
 
-  // Log errors
+  // Log errors and forward to telemetry
   logError: (error: AppError, context?: Record<string, unknown>): void => {
     const errorLog = {
       ...error.toJSON(),
@@ -139,8 +141,7 @@ export const errorHandler = {
     if (process.env.NODE_ENV === "development") {
       console.error("[Error]", errorLog);
     } else {
-      // In production, send to logging service
-      // Example: Sentry, LogRocket, etc.
+      // In production, minimise console noise
       console.error("[Error]", {
         message: error.message,
         code: error.code,
@@ -148,6 +149,13 @@ export const errorHandler = {
         timestamp: error.timestamp,
       });
     }
+
+    // Always forward to backend telemetry
+    telemetry.trackError(error, {
+      ...context,
+      statusCode: error.statusCode,
+      code: error.code,
+    });
   },
 
   // Get user-friendly error message

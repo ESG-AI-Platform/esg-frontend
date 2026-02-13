@@ -5,6 +5,7 @@ import type { Metadata, Viewport } from "next";
 import { NavBar } from "@/shared/components";
 import { AuthProvider } from "@/shared/providers/AuthProvider";
 import { QueryProvider } from "@/shared/providers/QueryProvider";
+import { ToastProvider } from "@/shared/providers/ToastProvider";
 
 import "./globals.css";
 
@@ -32,6 +33,7 @@ export default function RootLayout({
           <QueryProvider>
             <NavBar />
             <main>{children}</main>
+            <ToastProvider />
           </QueryProvider>
         </AuthProvider>
       </body>

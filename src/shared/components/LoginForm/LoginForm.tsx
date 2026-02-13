@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/shared/components/Button";
 import { useAuth } from "@/shared/hooks/useAuth";
-import { AppError, errorHandler } from "@/shared/lib/error-handling";
 import type { User } from "@/shared/types";
 
 interface LoginFormProps {
@@ -20,21 +19,14 @@ interface LoginFormState {
 type FormErrors = Partial<Record<keyof LoginFormState, string>>;
 
 export const LoginForm = ({ redirectTo, onSuccess }: LoginFormProps) => {
-    const { login, isAuthenticating, error, clearError } = useAuth();
+    const { login, isAuthenticating, clearError } = useAuth();
 
     const [formData, setFormData] = useState<LoginFormState>({
         email: "",
         password: "",
     });
     const [formErrors, setFormErrors] = useState<FormErrors>({});
-    const [submitError, setSubmitError] = useState<string | null>(null);
     const [showPassword, setShowPassword] = useState(false);
-
-    useEffect(() => {
-        if (error) {
-            setSubmitError(error);
-        }
-    }, [error]);
 
     useEffect(() => {
         return () => {
@@ -62,7 +54,6 @@ export const LoginForm = ({ redirectTo, onSuccess }: LoginFormProps) => {
     const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = event.target;
         clearError();
-        setSubmitError(null);
 
         setFormData(prev => ({
             ...prev,
@@ -80,7 +71,6 @@ export const LoginForm = ({ redirectTo, onSuccess }: LoginFormProps) => {
     const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         clearError();
-        setSubmitError(null);
 
         if (!validate()) {
             return;
@@ -91,11 +81,7 @@ export const LoginForm = ({ redirectTo, onSuccess }: LoginFormProps) => {
             setFormData({ email: "", password: "" });
             onSuccess?.(user);
         } catch (caughtError) {
-            const appError = caughtError instanceof AppError
-                ? caughtError
-                : errorHandler.handleApiError(caughtError, "auth/login-form");
-
-            setSubmitError(errorHandler.getUserMessage(appError));
+            // Error is handled by AuthProvider via notifyError + toast
         }
     };
 
@@ -108,18 +94,6 @@ export const LoginForm = ({ redirectTo, onSuccess }: LoginFormProps) => {
                 <p className="mt-2 text-sm text-slate-600">
                     Enter your email and password to access your ESG workspace.
                 </p>
-            </div>
-
-            <div aria-live="assertive" className="space-y-3">
-                {submitError && (
-                    <div className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                        <span className="text-lg" aria-hidden>⚠️</span>
-                        <div>
-                            <p className="font-medium">Unable to sign in</p>
-                            <p>{submitError}</p>
-                        </div>
-                    </div>
-                )}
             </div>
 
             <form className="mt-6 space-y-5" noValidate onSubmit={handleSubmit}>

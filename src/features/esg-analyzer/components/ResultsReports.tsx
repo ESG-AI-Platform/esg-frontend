@@ -2,6 +2,9 @@
 
 import { useState } from 'react';
 
+import { toast } from 'sonner';
+
+import { notifyError } from '@/shared/lib/notify-error';
 import { ESGReportData } from '@/shared/types/esgReport';
 
 import { useReportCSV } from '../hooks/useAnalyzer';
@@ -60,15 +63,15 @@ const getAdjustedMinioUrl = (url: string) => {
 
 export function ResultsReports({ reportData }: ResultsReportsProps) {
     const [isModalOpen, setIsModalOpen] = useState(false);
-    
-    const { 
-        data: processedData, 
-        isLoading: isCsvLoading, 
+
+    const {
+        data: processedData,
+        isLoading: isCsvLoading,
         isError,
         error: csvError,
         refetch
     } = useReportCSV(
-        reportData?.csvMergedReportUrl, 
+        reportData?.csvMergedReportUrl,
         reportData?.csvReportUrl
     );
 
@@ -78,7 +81,7 @@ export function ResultsReports({ reportData }: ResultsReportsProps) {
 
     const handleDownloadReport = async () => {
         if (!reportData || !reportData.csvMergedReportUrl) {
-            console.error('No report data available for download');
+            toast.error('No report data available for download');
             return;
         }
 
@@ -92,14 +95,16 @@ export function ResultsReports({ reportData }: ResultsReportsProps) {
             link.click();
             document.body.removeChild(link);
         } catch (error) {
-            console.error('Failed to download report:', error);
-            alert('Failed to download report. Please try again.');
+            notifyError(error, {
+                context: 'downloadReport',
+                userMessage: 'Failed to download report. Please try again.',
+            });
         }
     };
 
     const handleDownloadDetailedReport = async () => {
         if (!reportData || !reportData.csvReportUrl) {
-            console.error('No report data available for download');
+            toast.error('No report data available for download');
             return;
         }
 
@@ -113,8 +118,10 @@ export function ResultsReports({ reportData }: ResultsReportsProps) {
             link.click();
             document.body.removeChild(link);
         } catch (error) {
-            console.error('Failed to download report:', error);
-            alert('Failed to download report. Please try again.');
+            notifyError(error, {
+                context: 'downloadDetailedReport',
+                userMessage: 'Failed to download report. Please try again.',
+            });
         }
     };
 
@@ -136,14 +143,19 @@ export function ResultsReports({ reportData }: ResultsReportsProps) {
     }
 
     if (isError) {
+        if (csvError) {
+            notifyError(csvError, {
+                context: 'loadReportCSV',
+                userMessage: 'Failed to load report data.',
+            });
+        }
         return (
             <div className="py-12 text-center">
-                <div className="p-6 border border-red-200 rounded-lg bg-red-50">
-                    <h3 className="mb-2 font-medium text-red-800">Error Loading Data</h3>
-                    <p className="text-red-600">{(csvError as Error)?.message || 'Failed to load report data.'}</p>
+                <div className="p-6 border border-gray-200 rounded-lg bg-gray-50">
+                    <p className="mb-2 text-gray-600">Could not load report data.</p>
                     <button
                         onClick={() => refetch()}
-                        className="px-4 py-2 mt-4 text-white bg-red-600 rounded hover:bg-red-700"
+                        className="px-4 py-2 mt-4 text-white bg-blue-600 rounded hover:bg-blue-700"
                     >
                         Retry
                     </button>

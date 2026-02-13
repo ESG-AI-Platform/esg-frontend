@@ -12,7 +12,10 @@ import {
 
 import { useRouter } from "next/navigation";
 
-import { AppError, AuthenticationError, errorHandler } from "@/shared/lib/error-handling";
+import { toast } from "sonner";
+
+import { AuthenticationError, errorHandler } from "@/shared/lib/error-handling";
+import { notifyError } from "@/shared/lib/notify-error";
 import { AUTH_SESSION_EVENT, storage, type AuthSessionEventDetail } from "@/shared/lib/storage";
 import { authService } from "@/shared/services/auth-service";
 import type { LoginCredentials, RegisterData, User } from "@/shared/types";
@@ -115,7 +118,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                     router.push(nextPath);
                 }
             } catch (navigationError) {
-                console.error("Auth navigation failed", navigationError);
+                notifyError(navigationError, {
+                    context: "auth/navigate",
+                    userMessage: "Navigation failed. Please try again.",
+                });
             }
         },
         [router, sanitizeRedirectPath],
@@ -139,9 +145,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                 return null;
             }
 
-            const appError =
-                error instanceof AppError ? error : errorHandler.handleApiError(error, "auth/refresh");
-            errorHandler.logError(appError, { scope: "auth-sync" });
+            const appError = notifyError(error, {
+                context: "auth/refresh",
+                userMessage: "Unable to restore your session.",
+            });
             setState(prev => ({
                 ...prev,
                 user: null,
@@ -173,9 +180,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             }
 
             if (storedUser && !cancelled) {
-                 setState(prev => ({ ...prev, user: storedUser, status: "authenticated", error: null }));
+                setState(prev => ({ ...prev, user: storedUser, status: "authenticated", error: null }));
             } else if (!cancelled) {
-                 setState(prev => ({ ...prev, status: "checking" }));
+                setState(prev => ({ ...prev, status: "checking" }));
             }
 
             try {
@@ -198,9 +205,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                     return;
                 }
 
-                const appError =
-                    error instanceof AppError ? error : errorHandler.handleApiError(error, "auth/bootstrap");
-                errorHandler.logError(appError, { scope: "auth-bootstrap" });
+                const appError = notifyError(error, {
+                    context: "auth/bootstrap",
+                    showToast: false,
+                });
                 setState({
                     user: null,
                     status: "unauthenticated",
@@ -230,14 +238,16 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             }
 
             if (detail.type === "SESSION_CLEARED") {
+                const isExpired =
+                    detail.reason === "expired" || detail.reason === "refresh-failed";
                 setState({
                     user: null,
                     status: "unauthenticated",
-                    error:
-                        detail.reason === "expired" || detail.reason === "refresh-failed"
-                            ? SESSION_EXPIRED_MESSAGE
-                            : null,
+                    error: isExpired ? SESSION_EXPIRED_MESSAGE : null,
                 });
+                if (isExpired) {
+                    toast.warning(SESSION_EXPIRED_MESSAGE);
+                }
             }
         };
 
@@ -260,9 +270,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             navigate(options?.redirectTo, options?.replace);
             return authenticatedUser;
         } catch (error) {
-            const appError =
-                error instanceof AppError ? error : errorHandler.handleApiError(error, "auth/login");
-            errorHandler.logError(appError, { scope: "auth-login" });
+            const appError = notifyError(error, {
+                context: "auth/login",
+                userMessage: "Sign-in failed. Please check your credentials.",
+            });
             setState({
                 user: null,
                 status: "unauthenticated",
@@ -280,9 +291,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         try {
             await authService.logout();
         } catch (error) {
-            const appError =
-                error instanceof AppError ? error : errorHandler.handleApiError(error, "auth/logout");
-            errorHandler.logError(appError, { scope: "auth-logout" });
+            notifyError(error, {
+                context: "auth/logout",
+                userMessage: "Sign-out encountered an issue, but you have been logged out.",
+            });
         } finally {
             storage.clearAuth("logout");
             setState({ user: null, status: "unauthenticated", error: null });
@@ -298,9 +310,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             await authService.register(data);
             setState(prev => ({ ...prev, status: "unauthenticated", error: null }));
         } catch (error) {
-            const appError =
-                error instanceof AppError ? error : errorHandler.handleApiError(error, "auth/register");
-            errorHandler.logError(appError, { scope: "auth-register" });
+            const appError = notifyError(error, {
+                context: "auth/register",
+                userMessage: "Registration failed. Please try again.",
+            });
             setState(prev => ({
                 ...prev,
                 status: "unauthenticated",
