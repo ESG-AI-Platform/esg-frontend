@@ -4,62 +4,19 @@ import { useState } from 'react';
 
 import { toast } from 'sonner';
 
+import { ResultsReportsSkeleton } from '@/shared/components/Skeleton';
 import { notifyError } from '@/shared/lib/notify-error';
+import { normalizeStorageUrl } from '@/shared/lib/storage-url';
 import { ESGReportData } from '@/shared/types/esgReport';
 
 import { useReportCSV } from '../hooks/useAnalyzer';
-import { mockThemeDataWithSources } from '../services';
-import { DimensionGapData, OverallStatisticData } from '../types';
 
 import { AnalyzedThemesProportionalGap, DetailedAnalysisModal, OverallStatistic } from './results-reports';
 import { DimensionProportionalGap } from './results-reports/DimensionProportionalGap';
 
-const mockOverallData: OverallStatisticData = {
-    gapAnalysis: {
-        gapCount: 15,
-        totalIndicators: 35,
-        totalQuestionCodes: 120,
-        description: "Overall Gap Analysis"
-    },
-    analyzedThemes: {
-        analyzedThemeCount: 12,
-        description: "Analyzed Themes",
-        icon: "📊"
-    }
-};
-
-const mockDimensionData: DimensionGapData[] = [
-    {
-        name: "Environment",
-        gapCount: 0,
-        totalGaps: 100,
-        percentage: 0
-    },
-    {
-        name: "Social",
-        gapCount: 80,
-        totalGaps: 100,
-        percentage: 80
-    },
-    {
-        name: "Governance",
-        gapCount: 20,
-        totalGaps: 100,
-        percentage: 20
-    }
-];
-
 interface ResultsReportsProps {
     reportData?: ESGReportData | null;
 }
-
-const getAdjustedMinioUrl = (url: string) => {
-    if (process.env.NODE_ENV === 'development') {
-        return url.replace('minio', 'localhost');
-    }
-    const minioUrl = process.env.NEXT_PUBLIC_MINIO_URL || process.env.MINIO_URL || 'minio.esg-ai.wankaew.com';
-    return url.replace('minio:9000', minioUrl);
-};
 
 export function ResultsReports({ reportData }: ResultsReportsProps) {
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -75,9 +32,9 @@ export function ResultsReports({ reportData }: ResultsReportsProps) {
         reportData?.csvReportUrl
     );
 
-    const overallData = processedData?.overallData || mockOverallData;
-    const dimensionData = processedData?.dimensionData || mockDimensionData;
-    const themeData = processedData?.themeData || mockThemeDataWithSources;
+    const overallData = processedData?.overallData;
+    const dimensionData = processedData?.dimensionData;
+    const themeData = processedData?.themeData;
 
     const handleDownloadReport = async () => {
         if (!reportData || !reportData.csvMergedReportUrl) {
@@ -87,7 +44,7 @@ export function ResultsReports({ reportData }: ResultsReportsProps) {
 
         try {
             const link = document.createElement('a');
-            link.href = getAdjustedMinioUrl(reportData.csvMergedReportUrl);
+            link.href = normalizeStorageUrl(reportData.csvMergedReportUrl);
             link.target = '_blank';
             const companyName = reportData.companyName || 'Unknown_Company';
             link.download = `${companyName.replace(/[^a-z0-9]/gi, '_')}_ESG_Report_${new Date().toISOString().split('T')[0]}.csv`;
@@ -110,7 +67,7 @@ export function ResultsReports({ reportData }: ResultsReportsProps) {
 
         try {
             const link = document.createElement('a');
-            link.href = getAdjustedMinioUrl(reportData.csvReportUrl);
+            link.href = normalizeStorageUrl(reportData.csvReportUrl);
             link.target = '_blank';
             const companyName = reportData.companyName || 'Unknown_Company';
             link.download = `${companyName.replace(/[^a-z0-9]/gi, '_')}_ESG_Report_${new Date().toISOString().split('T')[0]}.csv`;
@@ -134,12 +91,7 @@ export function ResultsReports({ reportData }: ResultsReportsProps) {
     };
 
     if (isCsvLoading) {
-        return (
-            <div className="flex items-center justify-center py-12">
-                <div className="w-12 h-12 border-b-2 border-blue-600 rounded-full animate-spin"></div>
-                <span className="ml-3 text-gray-600">Loading report data...</span>
-            </div>
-        );
+        return <ResultsReportsSkeleton />;
     }
 
     if (isError) {
@@ -182,6 +134,25 @@ export function ResultsReports({ reportData }: ResultsReportsProps) {
                     <h3 className="mb-2 font-medium text-blue-800">Report Processing</h3>
                     <p className="text-blue-600">Your report is being processed. CSV data will be available once processing is complete.</p>
                     <p className="mt-2 text-sm text-blue-500">Status: {reportData.status || 'Processing'}</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (!overallData || !dimensionData || !themeData) {
+        return (
+            <div className="py-12 text-center">
+                <div className="p-6 border border-yellow-200 rounded-lg bg-yellow-50">
+                    <h3 className="mb-2 font-medium text-yellow-800">No Analysis Data</h3>
+                    <p className="text-yellow-600">
+                        Report data could not be processed. The CSV may be missing or invalid.
+                    </p>
+                    <button
+                        onClick={() => refetch()}
+                        className="px-4 py-2 mt-4 text-white bg-blue-600 rounded hover:bg-blue-700"
+                    >
+                        Retry
+                    </button>
                 </div>
             </div>
         );

@@ -6,7 +6,9 @@ import { useRouter } from 'next/navigation';
 
 import { toast } from 'sonner';
 
+import { ReportListSkeleton } from '@/shared/components/Skeleton';
 import { notifyError } from '@/shared/lib/notify-error';
+import { normalizeStorageUrl } from '@/shared/lib/storage-url';
 
 
 import { esgReportService } from '../services';
@@ -59,11 +61,7 @@ export function ESGReportPage() {
             }
 
             const link = document.createElement('a');
-            if (process.env.NODE_ENV === 'development') {
-                link.href = report.csvReportUrl.replace('minio', 'localhost');
-            } else {
-                link.href = report.csvReportUrl.replace('minio:9000', process.env.MINIO_URL || 'minio.esg-ai.wankaew.com');
-            }
+            link.href = normalizeStorageUrl(report.csvReportUrl);
             link.target = '_blank';
             const companyName = report.companyName || 'Unknown_Company';
             link.download = `${companyName.replace(/[^a-z0-9]/gi, '_')}_ESG_Report_${new Date().toISOString().split('T')[0]}.csv`;
@@ -99,14 +97,7 @@ export function ESGReportPage() {
     };
 
     if (loading) {
-        return (
-            <div className="flex items-center justify-center min-h-screen bg-gray-50">
-                <div className="text-center">
-                    <div className="w-12 h-12 mx-auto mb-4 border-b-2 border-blue-600 rounded-full animate-spin"></div>
-                    <p className="text-gray-600">Loading reports...</p>
-                </div>
-            </div>
-        );
+        return <ReportListSkeleton />;
     }
 
     if (loadFailed) {

@@ -6,6 +6,7 @@ export * from "./lib/api-client";
 export * from "./lib/error-handling";
 export * from "./lib/notify-error";
 export * from "./lib/storage";
+export * from "./lib/storage-url";
 export * from "./lib/utils";
 export * from "./providers";
 export * from "./services";

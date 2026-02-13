@@ -3,11 +3,15 @@ import { notifyError } from '@/shared/lib/notify-error';
 import { ThemeGapData, DimensionGapData, OverallStatisticData, SourceData } from '../types';
 
 import { DIMENSION_THEME_MAPPING } from './csvDataStructure';
+import { assertCSVValid } from './csvValidation';
+import { validateMetrics } from './metricsValidation';
 
+/** Generic key-value row produced by {@link CSVService.parseCSV}. */
 export interface CSVDataRow {
     [key: string]: string;
 }
 
+/** Strongly-typed row matching the ESG processing service output columns. */
 export interface ESGCSVRow {
     Company?: string;
     Theme: string;
@@ -25,7 +29,10 @@ export interface ESGCSVRow {
 
 export class CSVService {
     /**
-     * Fetches CSV data from a URL and parses it into an array of objects
+     * Fetches a CSV file and parses it into row objects.
+     *
+     * @param url - Absolute URL to the CSV resource.
+     * @throws On network errors or non-2xx responses.
      */
     static async fetchCSVData(url: string): Promise<CSVDataRow[]> {
         try {
@@ -43,7 +50,13 @@ export class CSVService {
     }
 
     /**
-     * Fetches and processes both CSV files to get complete ESG data
+     * Fetches, validates, and processes the merged + detailed CSV pair into
+     * structured gap analysis metrics.
+     *
+     * @param mergedUrl   - URL of the merged (summary) CSV.
+     * @param detailedUrl - URL of the detailed (per-source) CSV.
+     * @returns Computed overall, dimension, and theme-level metrics.
+     * @throws {CSVValidationException} When either CSV fails schema validation.
      */
     static async fetchAndProcessBothCSVs(mergedUrl: string, detailedUrl: string): Promise<{
         overallData: OverallStatisticData;
@@ -56,6 +69,10 @@ export class CSVService {
                 this.fetchCSVData(detailedUrl)
             ]);
 
+            // Validate both CSVs before processing
+            assertCSVValid(mergedData, 'Merged CSV');
+            assertCSVValid(detailedData, 'Detailed CSV');
+
             return this.processESGDataWithBothSources(mergedData, detailedData);
         } catch (error) {
             notifyError(error, { context: 'fetchBothCSVs', showToast: false });
@@ -64,7 +81,11 @@ export class CSVService {
     }
 
     /**
-     * Parses CSV text into an array of objects
+     * Parses raw CSV text into an array of header-keyed row objects.
+     *
+     * Handles quoted fields containing newlines and commas.
+     * Malformed rows (column count mismatch) are padded or truncated with a
+     * console warning.
      */
     static parseCSV(csvText: string): CSVDataRow[] {
         let normalizedText = '';
@@ -90,8 +111,10 @@ export class CSVService {
         for (let i = 1; i < lines.length; i++) {
             const values = this.parseCSVLine(lines[i]);
             if (values.length !== headers.length) {
-                console.warn(`Row ${i} has ${values.length} values, expected ${headers.length}: ${values.join('|')}`);
-                // Optionally pad or skip malformed rows
+                console.warn(
+                    `[CSV Parse] Row ${i + 1} has ${values.length} columns, expected ${headers.length}. ` +
+                    `Row will be padded/truncated.`,
+                );
                 while (values.length < headers.length) values.push('');
                 while (values.length > headers.length) values.pop();
             }
@@ -105,9 +128,7 @@ export class CSVService {
         return rows;
     }
 
-    /**
-     * Parses a single CSV line, handling quotes and commas correctly
-     */
+    /** Splits a single CSV line into field values, respecting quoted commas. */
     private static parseCSVLine(line: string): string[] {
         const values: string[] = [];
         let current = '';
@@ -131,27 +152,36 @@ export class CSVService {
     }
 
     /**
-     * Processes raw CSV data into structured ESG analysis data (backward compatibility)
+     * Single-CSV processing path (backward compatibility).
+     * Runs post-computation metrics validation.
      */
     static processESGData(rawData: CSVDataRow[]): {
         overallData: OverallStatisticData;
         dimensionData: DimensionGapData[];
         themeData: ThemeGapData[];
     } {
-        // Process the data based on expected CSV structure
         const themeData = this.processThemeDataNewFormat(rawData);
         const dimensionData = this.processDimensionData(rawData, themeData);
         const overallData = this.processOverallData(rawData, themeData);
 
-        return {
-            overallData,
-            dimensionData,
-            themeData
-        };
+        const result = { overallData, dimensionData, themeData };
+
+        // Post-computation integrity check
+        const validation = validateMetrics(result);
+        if (!validation.valid) {
+            const errors = validation.issues
+                .filter(i => i.severity === 'error')
+                .map(i => `[${i.field}] ${i.message}`)
+                .join('\n');
+            console.error('[Metrics Validation] Output failed validation:\n', errors);
+        }
+
+        return result;
     }
 
     /**
-     * Processes ESG data using both merged and detailed CSV sources
+     * Dual-CSV processing path (merged + detailed).
+     * Runs post-computation metrics validation.
      */
     static processESGDataWithBothSources(mergedData: CSVDataRow[], detailedData: CSVDataRow[]): {
         overallData: OverallStatisticData;
@@ -162,15 +192,33 @@ export class CSVService {
         const dimensionData = this.processDimensionData(mergedData, themeData);
         const overallData = this.processOverallData(mergedData, themeData);
 
-        return {
-            overallData,
-            dimensionData,
-            themeData
-        };
+        const result = { overallData, dimensionData, themeData };
+
+        // Post-computation integrity check
+        const validation = validateMetrics(result);
+        if (!validation.valid) {
+            const errors = validation.issues
+                .filter(i => i.severity === 'error')
+                .map(i => `[${i.field}] ${i.message}`)
+                .join('\n');
+            console.error('[Metrics Validation] Output failed validation:\n', errors);
+        }
+        if (validation.issues.some(i => i.severity === 'warning')) {
+            console.warn(
+                '[Metrics Validation] Warnings:',
+                validation.issues.filter(i => i.severity === 'warning').map(i => i.message),
+            );
+        }
+
+        return result;
     }
 
     /**
-     * Processes theme data using both merged and detailed CSV sources
+     * Builds theme → indicator → question-code hierarchy from both CSV sources.
+     *
+     * For non-gap rows, cross-references the detailed CSV to collect all
+     * supporting source citations. Falls back to the merged-row source when
+     * no detailed matches exist.
      */
     private static processThemeDataWithBothSources(mergedData: CSVDataRow[], detailedData: CSVDataRow[]): ThemeGapData[] {
         const themeMap = new Map<string, ThemeGapData>();
@@ -187,8 +235,11 @@ export class CSVService {
             const pageNumber = parseInt(row['PageNumber'] || '0');
             const sourceFile = row['Source_File'] || '';
 
-            // Determine if there's a gap (No = gap, Yes = no gap)
-            const hasGap = response.toLowerCase() === 'no';
+            // Determine if there's a gap:
+            //   "yes" (case-insensitive) → no gap
+            //   anything else ("no", empty, unknown) → gap
+            const normalizedResponse = response.trim().toLowerCase();
+            const hasGap = normalizedResponse !== 'yes';
 
             if (!themeMap.has(themeName)) {
                 themeMap.set(themeName, {
@@ -218,10 +269,10 @@ export class CSVService {
                 theme.indicators.push(indicator);
             }
 
-            // Get all related sources from detailed data if no gap
+            // Collect source citations from the detailed CSV for non-gap items.
             let sources: SourceData[] = [];
             if (!hasGap) {
-                // Find all matching records in detailed data
+                // Cross-reference the detailed CSV for matching source citations.
                 const detailedSources = detailedData.filter(detailRow =>
                     detailRow['Indicator Question Code'] === questionCode &&
                     detailRow['Indicator Question'] === question &&
@@ -235,7 +286,7 @@ export class CSVService {
                     source_file: detailRow['Source_File'] || ''
                 }));
 
-                // If no detailed sources found, use the merged source
+                // Fall back to the merged-row source when detailed data is absent.
                 if (sources.length === 0 && sourceText) {
                     sources = [{
                         id: `src_${Date.now()}_${Math.random()}`,
@@ -246,7 +297,6 @@ export class CSVService {
                 }
             }
 
-            // Add question code
             indicator.questionCodes.push({
                 code: questionCode,
                 question: question,
@@ -260,7 +310,7 @@ export class CSVService {
             }
         });
 
-        // Calculate percentages
+        // Derive percentages from accumulated counts.
         const themes = Array.from(themeMap.values());
         themes.forEach(theme => {
             theme.indicators?.forEach(indicator => {
@@ -281,7 +331,8 @@ export class CSVService {
     }
 
     /**
-     * Processes theme data using new CSV format (fallback for single file)
+     * Single-file theme processing fallback.
+     * Identical gap logic, but sources come only from the single CSV.
      */
     private static processThemeDataNewFormat(rawData: CSVDataRow[]): ThemeGapData[] {
         const themeMap = new Map<string, ThemeGapData>();
@@ -298,8 +349,9 @@ export class CSVService {
             const pageNumber = parseInt(row['PageNumber'] || '0');
             const sourceFile = row['Source_File'] || '';
 
-            // Determine if there's a gap (No = gap, Yes = no gap)
-            const hasGap = response.toLowerCase() === 'no';
+            // Gap rule: only an explicit "yes" counts as addressed.
+            const normalizedResponse = response.trim().toLowerCase();
+            const hasGap = normalizedResponse !== 'yes';
 
             if (!themeMap.has(themeName)) {
                 themeMap.set(themeName, {
@@ -313,7 +365,6 @@ export class CSVService {
 
             const theme = themeMap.get(themeName)!;
 
-            // Find or create indicator
             let indicator = theme.indicators?.find(ind => ind.id === indicatorCode);
             if (!indicator) {
                 indicator = {
@@ -329,7 +380,7 @@ export class CSVService {
                 theme.indicators.push(indicator);
             }
 
-            // Add source if available
+            // Attach inline source when available.
             const sources: SourceData[] = sourceText ? [{
                 id: `src_${Date.now()}_${Math.random()}`,
                 source_text: sourceText,
@@ -337,7 +388,6 @@ export class CSVService {
                 source_file: sourceFile
             }] : [];
 
-            // Add question code
             indicator.questionCodes.push({
                 code: questionCode,
                 question: question,
@@ -351,7 +401,7 @@ export class CSVService {
             }
         });
 
-        // Calculate percentages
+        // Derive percentages from accumulated counts.
         const themes = Array.from(themeMap.values());
         themes.forEach(theme => {
             theme.indicators?.forEach(indicator => {
@@ -372,37 +422,38 @@ export class CSVService {
     }
 
     /**
-     * Processes dimension data from themes
+     * Aggregates theme-level gaps into E / S / G dimension buckets.
+     *
+     * Matches themes by exact name (case-insensitive) using
+     * {@link DIMENSION_THEME_MAPPING} to avoid false-positive substring hits.
      */
-    private static processDimensionData(rawData: CSVDataRow[], themeData: ThemeGapData[]): DimensionGapData[] {
-        const dimensionMap = new Map<string, { themes: string[], gapCount: number, totalGaps: number }>();
+    private static processDimensionData(_rawData: CSVDataRow[], themeData: ThemeGapData[]): DimensionGapData[] {
+        // O(1) lookup by normalised theme name.
+        const themeLookup = new Map<string, ThemeGapData>();
+        themeData.forEach(t => themeLookup.set(t.name.toLowerCase().trim(), t));
 
-        Object.entries(DIMENSION_THEME_MAPPING).forEach(([dimension, themes]) => {
+        return Object.entries(DIMENSION_THEME_MAPPING).map(([dimension, themes]) => {
             let gapCount = 0;
             let totalGaps = 0;
 
             themes.forEach(themeName => {
-                const theme = themeData.find(t => t.name === themeName || t.name.toLowerCase().includes(themeName.toLowerCase()));
+                const theme = themeLookup.get(themeName.toLowerCase().trim());
                 if (theme) {
                     gapCount += theme.gapCount;
                     totalGaps += theme.totalGaps;
                 }
             });
 
-            dimensionMap.set(dimension, { themes, gapCount, totalGaps });
+            return {
+                name: dimension,
+                gapCount,
+                totalGaps,
+                percentage: totalGaps > 0 ? Math.round((gapCount / totalGaps) * 100) : 0,
+            };
         });
-
-        return Array.from(dimensionMap.entries()).map(([name, data]) => ({
-            name,
-            gapCount: data.gapCount,
-            totalGaps: data.totalGaps,
-            percentage: data.totalGaps > 0 ? Math.round((data.gapCount / data.totalGaps) * 100) : 0
-        }));
     }
 
-    /**
-     * Processes overall statistics
-     */
+    /** Computes top-level statistics (total gaps, indicator count, etc.). */
     private static processOverallData(rawData: CSVDataRow[], themeData: ThemeGapData[]): OverallStatisticData {
         const totalGaps = themeData.reduce((sum, theme) => sum + theme.gapCount, 0);
         const uniqueIndicatorCodes = new Set<string>();
