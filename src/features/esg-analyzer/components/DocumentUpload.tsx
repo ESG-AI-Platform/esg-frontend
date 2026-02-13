@@ -8,7 +8,7 @@ import { useForm, FormProvider, SubmitHandler } from 'react-hook-form';
 import { notifyError } from '@/shared/lib/notify-error';
 import { ESGReportData } from '@/shared/types/esgReport';
 
-import { deriveIcbSelectionFromSubsector } from '../constants/icb';
+import { deriveIcbSelectionFromSubsector, resolveSubsectorCode } from '../constants/icb';
 import { useFileUpload } from '../hooks/useFileUpload';
 import { esgAnalyzerService } from '../services';
 import { ESGProcessDocumentsResponse } from '../types';
@@ -146,16 +146,20 @@ export function DocumentUpload({ reportData, onProcessingComplete }: DocumentUpl
             industryId: reportData.industryId || '',
             supersectorId: reportData.supersectorId || '',
             sectorId: reportData.sectorId || '',
-            subsectorCode: reportData.subsectorId || ''
+            subsectorCode: ''
         };
 
         if (reportData.subsectorId) {
-            const derived = deriveIcbSelectionFromSubsector(reportData.subsectorId);
-            if (derived) {
-                baseDefaults.industryId = derived.level1 || baseDefaults.industryId;
-                baseDefaults.supersectorId = derived.level2 || baseDefaults.supersectorId;
-                baseDefaults.sectorId = derived.level3 || baseDefaults.sectorId;
-                baseDefaults.subsectorCode = derived.level4 || baseDefaults.subsectorCode;
+            const subsectorCode = resolveSubsectorCode(reportData.subsectorId);
+            if (subsectorCode) {
+                baseDefaults.subsectorCode = subsectorCode;
+                const derived = deriveIcbSelectionFromSubsector(subsectorCode);
+                if (derived) {
+                    baseDefaults.industryId = derived.level1 || baseDefaults.industryId;
+                    baseDefaults.supersectorId = derived.level2 || baseDefaults.supersectorId;
+                    baseDefaults.sectorId = derived.level3 || baseDefaults.sectorId;
+                    baseDefaults.subsectorCode = derived.level4 || baseDefaults.subsectorCode;
+                }
             }
         }
 

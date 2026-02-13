@@ -122,7 +122,9 @@ export const ICB_DATA: IcbData = {
         ],
         '1770': [
             { id: '1771', name: 'Coal' },
+            { id: '1772', name: 'Nuclear Fuel Processors' },
             { id: '1773', name: 'Diamonds & Gemstones' },
+            { id: '1774', name: 'Uranium Mining' },
             { id: '1775', name: 'General Mining' },
             { id: '1777', name: 'Gold Mining' },
             { id: '1779', name: 'Platinum & Precious Metals' }
@@ -145,7 +147,8 @@ export const ICB_DATA: IcbData = {
         ],
         '2750': [
             { id: '2753', name: 'Commercial Vehicles & Trucks' },
-            { id: '2757', name: 'Industrial Machinery' }
+            { id: '2757', name: 'Industrial Machinery' },
+            { id: '2758', name: 'Reactors' }
         ],
         '2770': [
             { id: '2771', name: 'Delivery Services' },
@@ -159,6 +162,7 @@ export const ICB_DATA: IcbData = {
             { id: '2793', name: 'Business Training & Employment Agencies' },
             { id: '2795', name: 'Financial Administration' },
             { id: '2797', name: 'Industrial Suppliers' },
+            { id: '2798', name: 'Nuclear Fuel Transport & Storage' },
             { id: '2799', name: 'Waste & Disposal Services' }
         ],
         '3350': [
@@ -173,7 +177,8 @@ export const ICB_DATA: IcbData = {
         ],
         '3570': [
             { id: '3573', name: 'Farming, Fishing & Plantations' },
-            { id: '3577', name: 'Food Products' }
+            { id: '3577', name: 'Food Products' },
+            { id: '3578', name: 'BMS' }
         ],
         '3720': [
             { id: '3722', name: 'Durable Household Products' },
@@ -235,7 +240,8 @@ export const ICB_DATA: IcbData = {
         ],
         '7530': [
             { id: '7535', name: 'Conventional Electricity' },
-            { id: '7537', name: 'Alternative Electricity' }
+            { id: '7537', name: 'Alternative Electricity' },
+            { id: '7538', name: 'Nuclear Power Generators' }
         ],
         '7570': [
             { id: '7573', name: 'Gas Distribution' },
@@ -293,6 +299,48 @@ export const ICB_DATA: IcbData = {
         ]
     }
 };
+
+export const SUBSECTOR_ID_TO_CODE: Record<number, string> = {
+    1: '0533', 2: '0537', 3: '0573', 4: '0577', 5: '0583', 6: '0587',
+    7: '1353', 8: '1357', 9: '1733', 10: '1737', 11: '1753', 12: '1755',
+    13: '1757', 14: '1771', 15: '1773', 16: '1775', 17: '1777', 18: '1779',
+    19: '2353', 20: '2357', 21: '2713', 22: '2717', 23: '2723', 24: '2727',
+    25: '2733', 26: '2737', 27: '2753', 28: '2757', 29: '2771', 30: '2773',
+    31: '2775', 32: '2777', 33: '2779', 34: '2791', 35: '2793', 36: '2795',
+    37: '2797', 38: '2799', 39: '3353', 40: '3355', 41: '3357', 42: '3533',
+    43: '3535', 44: '3537', 45: '3573', 46: '3577', 47: '3722', 48: '3724',
+    49: '3726', 50: '3728', 51: '3743', 52: '3745', 53: '3747', 54: '3763',
+    55: '3765', 56: '3767', 57: '3785', 58: '4533', 59: '4535', 60: '4537',
+    61: '4573', 62: '4577', 63: '5333', 64: '5337', 65: '5371', 66: '5373',
+    67: '5375', 68: '5377', 69: '5379', 70: '5553', 71: '5555', 72: '5557',
+    73: '5751', 74: '5752', 75: '5753', 76: '5755', 77: '5757', 78: '5759',
+    79: '6535', 80: '6575', 81: '7535', 82: '7537', 83: '7573', 84: '7575',
+    85: '7577', 86: '8355', 87: '8532', 88: '8534', 89: '8536', 90: '8538',
+    91: '8575', 92: '8633', 93: '8637', 94: '8671', 95: '8672', 96: '8673',
+    97: '8674', 98: '8675', 99: '8676', 100: '8677', 101: '8771', 102: '8773',
+    103: '8775', 104: '8777', 105: '8779', 106: '8985', 107: '8995',
+    108: '9533', 109: '9535', 110: '9537', 111: '9572', 112: '9574',
+    113: '9576', 114: '9578', 115: '3578', 116: '7538', 117: '2758',
+    118: '1772', 119: '2798', 120: '1774'
+};
+
+export function resolveSubsectorCode(subsectorId?: string | number | null): string | null {
+    if (subsectorId == null) return null;
+
+    const numericId = typeof subsectorId === 'number' ? subsectorId : parseInt(subsectorId, 10);
+    if (!isNaN(numericId) && SUBSECTOR_ID_TO_CODE[numericId]) {
+        return SUBSECTOR_ID_TO_CODE[numericId];
+    }
+
+    const codeStr = String(subsectorId);
+    for (const subsectors of Object.values(ICB_DATA.level3)) {
+        if (subsectors.some((s) => s.id === codeStr)) {
+            return codeStr;
+        }
+    }
+
+    return null;
+}
 
 export function deriveIcbSelectionFromSubsector(subsectorId?: string | null): IcbSelection | null {
     if (!subsectorId) {
