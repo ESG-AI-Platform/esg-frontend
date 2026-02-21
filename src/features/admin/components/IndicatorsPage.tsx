@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+
 import { ftseDimensions } from "../data/mock-data";
 
 const typeColors: Record<string, string> = {

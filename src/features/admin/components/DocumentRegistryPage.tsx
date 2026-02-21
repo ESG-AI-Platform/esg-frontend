@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+
 import { esgDocuments } from "../data/mock-data";
 
 const PAGE_SIZE = 8;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+
 import { dataQualitySummary, dataQualityIssues } from "../data/mock-data";
 
 const severityStyles: Record<string, string> = {

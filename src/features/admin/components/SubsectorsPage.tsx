@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+
 import { subsectors } from "../data/mock-data";
 
 export function SubsectorsPage() {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+
 import { companyProfiles } from "../data/mock-data";
 
 export function CompanyProfilePage() {
