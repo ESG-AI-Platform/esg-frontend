@@ -32,9 +32,13 @@ export function NavBar() {
         { href: "/" as const, label: "Home" },
         { href: "/esg-report" as const, label: "ESG Reports" },
         { href: "/esg-analyzer" as const, label: "ESG Analyzer" },
+        { href: "/admin" as const, label: "Admin" },
     ];
 
-    const isActive = (path: string) => pathname === path;
+    const isActive = (path: string) => {
+        if (path === "/") return pathname === "/";
+        return pathname === path || pathname.startsWith(path + "/");
+    };
 
     const handleLogout = async () => {
         await logout({ redirectTo: "/auth", replace: true });
