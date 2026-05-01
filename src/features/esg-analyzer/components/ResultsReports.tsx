@@ -58,6 +58,35 @@ const getAdjustedMinioUrl = (url: string) => {
     return url.replace('minio:9000', minioUrl);
 };
 
+const getReportFileName = (companyName: string | undefined, reportType: string) => {
+    const safeCompanyName = (companyName || 'Unknown_Company').replace(/[^a-z0-9]/gi, '_');
+    const date = new Date().toISOString().split('T')[0];
+
+    return `${safeCompanyName}_${reportType}_${date}.csv`;
+};
+
+const downloadCsvFile = async (url: string, fileName: string) => {
+    const response = await fetch(getAdjustedMinioUrl(url));
+
+    if (!response.ok) {
+        throw new Error(`Download failed with status ${response.status}`);
+    }
+
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+
+    try {
+        link.href = objectUrl;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+    } finally {
+        link.remove();
+        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+    }
+};
+
 export function ResultsReports({ reportData }: ResultsReportsProps) {
     const [isModalOpen, setIsModalOpen] = useState(false);
     
@@ -83,14 +112,10 @@ export function ResultsReports({ reportData }: ResultsReportsProps) {
         }
 
         try {
-            const link = document.createElement('a');
-            link.href = getAdjustedMinioUrl(reportData.csvMergedReportUrl);
-            link.target = '_blank';
-            const companyName = reportData.companyName || 'Unknown_Company';
-            link.download = `${companyName.replace(/[^a-z0-9]/gi, '_')}_ESG_Report_${new Date().toISOString().split('T')[0]}.csv`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+            await downloadCsvFile(
+                reportData.csvMergedReportUrl,
+                getReportFileName(reportData.companyName, 'ESG_Report')
+            );
         } catch (error) {
             console.error('Failed to download report:', error);
             alert('Failed to download report. Please try again.');
@@ -104,14 +129,10 @@ export function ResultsReports({ reportData }: ResultsReportsProps) {
         }
 
         try {
-            const link = document.createElement('a');
-            link.href = getAdjustedMinioUrl(reportData.csvReportUrl);
-            link.target = '_blank';
-            const companyName = reportData.companyName || 'Unknown_Company';
-            link.download = `${companyName.replace(/[^a-z0-9]/gi, '_')}_ESG_Report_${new Date().toISOString().split('T')[0]}.csv`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+            await downloadCsvFile(
+                reportData.csvReportUrl,
+                getReportFileName(reportData.companyName, 'ESG_Detailed_Report')
+            );
         } catch (error) {
             console.error('Failed to download report:', error);
             alert('Failed to download report. Please try again.');
