@@ -4,6 +4,8 @@ import { ESGReportData } from '@/shared/types/esgReport';
 
 import { ESGReportSummary } from '../types';
 
+const REPORTS_PAGE_SIZE = 100;
+
 class ESGReportService {
     private apiClient: ApiClient;
 
@@ -11,9 +13,35 @@ class ESGReportService {
         this.apiClient = new ApiClient();
     }
 
+    private getMyReportsEndpoint(page: number) {
+        const params = new URLSearchParams({
+            page: page.toString(),
+            limit: REPORTS_PAGE_SIZE.toString(),
+        });
+
+        return `${API_ENDPOINTS.ESG_REPORTS.MY_REPORTS}?${params.toString()}`;
+    }
+
+    private async getMyReportsPage(page: number) {
+        return await this.apiClient.get<ESGReportData[]>(this.getMyReportsEndpoint(page));
+    }
+
     async getMyReports(): Promise<ESGReportData[]> {
-        const response = await this.apiClient.get<ESGReportData[]>(API_ENDPOINTS.ESG_REPORTS.MY_REPORTS);
-        return response.data;
+        const firstPage = await this.getMyReportsPage(1);
+        const totalPages = firstPage.pagination?.totalPages ?? 1;
+
+        if (totalPages <= 1) {
+            return firstPage.data;
+        }
+
+        const remainingPages = await Promise.all(
+            Array.from({ length: totalPages - 1 }, (_, index) => this.getMyReportsPage(index + 2))
+        );
+
+        return [
+            ...firstPage.data,
+            ...remainingPages.flatMap((response) => response.data),
+        ];
     }
 
     async getReportsSummary(): Promise<ESGReportSummary[]> {
